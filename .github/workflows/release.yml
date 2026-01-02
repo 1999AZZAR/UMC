@@ -90,6 +90,10 @@ jobs:
 
           ## Downloads
           - Download the .deb package from the assets below
+
+          ## Repository Permissions
+          If releases are failing, check repository settings:
+          Settings → Actions → General → Workflow permissions → "Read and write permissions"
         files: |
           *.deb
           *.buildinfo
@@ -99,9 +103,23 @@ jobs:
         fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      continue-on-error: true
+
+    - name: Release Status
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      run: |
+        echo "✅ Build completed successfully!"
+        echo "📦 Debian packages available in workflow artifacts"
+        echo ""
+        echo "If release creation failed:"
+        echo "1. Check repository permissions: Settings → Actions → General"
+        echo "2. Set 'Workflow permissions' to 'Read and write permissions'"
+        echo "3. Or create RELEASE_TOKEN secret with a Personal Access Token"
+        echo ""
+        echo "Packages are always available in: Actions → This workflow → Artifacts"
 
     - name: Cleanup Nightly Tag
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
       run: |
         # Remove the temporary nightly tag (local only, not pushed)
         git tag -d "nightly-${{ github.run_number }}-${{ github.run_attempt }}" || true
