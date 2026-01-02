@@ -104,19 +104,28 @@ This creates a stable release with generated release notes.
 
 If releases fail with a 403 error:
 
-1. **Check Repository Permissions**:
-   - Go to **Settings** → **Actions** → **General**
-   - Under **"Workflow permissions"**, select **"Read and write permissions"**
+#### **Solution 1: Fix Repository Permissions (Recommended)**
+1. Go to **Settings** → **Actions** → **General**
+2. Under **"Workflow permissions"**, select **"Read and write permissions"**
+3. Make sure **"Allow GitHub Actions to create and approve pull requests"** is checked
+4. **Save** the changes
 
-2. **Alternative: Use Personal Access Token**:
-   - Create a PAT with `repo` scope at https://github.com/settings/tokens
-   - Add it as `RELEASE_TOKEN` secret in repository settings
-   - Update workflow to use `${{ secrets.RELEASE_TOKEN }}` instead of `${{ secrets.GITHUB_TOKEN }}`
+**Test**: Push a small change to trigger the workflow and check if releases are created.
 
-3. **Fallback Option**:
-   - If release creation fails, artifacts are still available in the **Actions** tab
-   - Go to the workflow run → **Artifacts** → Download the debian-package.zip
-   - Nightly releases create temporary local git tags that don't affect the repository
+#### **Solution 2: Use Personal Access Token**
+If the above doesn't work:
+1. Create a PAT with `repo` scope at https://github.com/settings/tokens
+2. Add it as `RELEASE_TOKEN` secret in your repository:
+   - Go to **Settings** → **Secrets and variables** → **Actions**
+   - Click **"New repository secret"**
+   - Name: `RELEASE_TOKEN`
+   - Value: Your PAT token
+3. Update the workflow to use: `${{ secrets.RELEASE_TOKEN }}`
+
+#### **Important Notes**
+- **Workflow continues on release failure**: Even if releases can't be created, your packages are still built and available
+- **Artifacts are always uploaded**: Check the **Actions** tab → workflow run → **Artifacts**
+- **Permission fix is permanent**: Once you fix repository permissions, all future releases will work automatically
 
 #### Manual Testing
 1. Go to **Actions** tab in GitHub

@@ -98,7 +98,7 @@ jobs:
         prerelease: true
         fail_on_unmatched_files: false
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
     - name: Cleanup Nightly Tag
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
@@ -126,4 +126,4 @@ jobs:
         prerelease: false
         fail_on_unmatched_files: false
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
