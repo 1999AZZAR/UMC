@@ -116,7 +116,7 @@ If releases fail with a 403 error:
 3. **Fallback Option**:
    - If release creation fails, artifacts are still available in the **Actions** tab
    - Go to the workflow run → **Artifacts** → Download the debian-package.zip
-   - Nightly releases create releases without git tags to avoid conflicts
+   - Nightly releases create temporary local git tags that don't affect the repository
 
 #### Manual Testing
 1. Go to **Actions** tab in GitHub

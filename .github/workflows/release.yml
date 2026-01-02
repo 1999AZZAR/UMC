@@ -65,10 +65,19 @@ jobs:
           *.buildinfo
           *.changes
 
+    - name: Create Nightly Tag
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      run: |
+        # Create a lightweight tag for nightly release
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git tag "nightly-${{ github.run_number }}-${{ github.run_attempt }}" ${{ github.sha }}
+
     - name: Create Release
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: nightly-${{ github.run_number }}-${{ github.run_attempt }}
         name: Nightly Release ${{ github.run_number }}.${{ github.run_attempt }}
         body: |
           Automated nightly release from ${{ github.ref_name }} branch.
@@ -81,7 +90,6 @@ jobs:
 
           ## Downloads
           - Download the .deb package from the assets below
-          - If release creation fails, download from the workflow artifacts
         files: |
           *.deb
           *.buildinfo
@@ -91,7 +99,12 @@ jobs:
         fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      continue-on-error: true
+
+    - name: Cleanup Nightly Tag
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      run: |
+        # Remove the temporary nightly tag (local only, not pushed)
+        git tag -d "nightly-${{ github.run_number }}-${{ github.run_attempt }}" || true
 
     - name: Create Tagged Release
       if: startsWith(github.ref, 'refs/tags/v')
