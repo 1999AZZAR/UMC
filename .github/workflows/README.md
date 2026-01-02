@@ -23,21 +23,22 @@ Automatically builds and releases Debian packages for the Unified Mobile Control
    - Builds `.deb` package using `dpkg-buildpackage`
 
 2. **Release Creation**:
-   - **Nightly releases**: Created automatically on every push to main/master
-   - **Official releases**: Created when version tags are pushed
-   - Packages attached as release assets
+   - **Nightly releases**: Created automatically on every push to main/master with detailed build information
+   - **Official releases**: Created when version tags are pushed with auto-generated release notes
+   - Packages attached as release assets with installation instructions
 
 3. **Artifact Upload**:
    - All build artifacts uploaded to GitHub Actions
    - Available for download even if release creation fails
+   - Includes .deb, .buildinfo, and .changes files
 
 #### Release Types
 
-| Trigger | Release Type | Tag Format | Notes |
-|---------|-------------|------------|-------|
-| Push to main/master | Nightly (pre-release) | `nightly-{run}-{attempt}` | Automatic |
-| Version tag | Official (stable) | Uses tag name | Manual trigger |
-| Pull Request | Build Only | None | Testing only |
+| Trigger | Release Type | Tag Format | Content |
+|---------|-------------|------------|---------|
+| Push to main/master | Nightly (pre-release) | `nightly-{run}-{attempt}` | Build info, installation instructions, development notes |
+| Version tag | Official (stable) | Uses tag name | Auto-generated release notes, comprehensive installation guide |
+| Pull Request | Build Only | None | Testing only, no releases |
 
 #### Configuration
 

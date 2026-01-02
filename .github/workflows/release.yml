@@ -76,11 +76,11 @@ jobs:
     - name: Debug Branch Info
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       run: |
-        echo "🎯 Branch: ${{ github.ref }}"
-        echo "📝 Ref name: ${{ github.ref_name }}"
-        echo "🔢 Run number: ${{ github.run_number }}"
-        echo "🔄 Run attempt: ${{ github.run_attempt }}"
-        echo "✅ Will create nightly release"
+        echo "Branch: ${{ github.ref }}"
+        echo "Ref name: ${{ github.ref_name }}"
+        echo "Run number: ${{ github.run_number }}"
+        echo "Run attempt: ${{ github.run_attempt }}"
+        echo "Will create nightly release"
 
     - name: Create Release
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
@@ -89,20 +89,39 @@ jobs:
         tag_name: nightly-${{ github.run_number }}-${{ github.run_attempt }}
         name: Nightly Release ${{ github.run_number }}.${{ github.run_attempt }}
         body: |
-          Automated nightly release from ${{ github.ref_name }} branch.
+          ## Unified Mobile Controller (UMC) - Nightly Build
 
-          ## Build Info
-          - Commit: ${{ github.sha }}
-          - Built on: ${{ github.event.head_commit.timestamp }}
-          - Run: ${{ github.run_number }}.${{ github.run_attempt }}
-          - Branch: ${{ github.ref_name }}
+          This is an automated nightly release built from the latest `${{ github.ref_name }}` branch changes.
 
-          ## Downloads
-          - Download the .deb package from the assets below
+          ### What's Included
+          - **Latest features** and bug fixes from ongoing development
+          - **Pre-compiled Debian package** for easy installation
+          - **Build artifacts** including debug symbols and build info
 
-          ## Repository Permissions
-          If releases are failing, check repository settings:
-          Settings → Actions → General → Workflow permissions → "Read and write permissions"
+          ### Installation
+          ```bash
+          # Download and install
+          wget https://github.com/${{ github.repository }}/releases/download/nightly-${{ github.run_number }}-${{ github.run_attempt }}/umc_*.deb
+          sudo dpkg -i umc_*.deb
+          sudo apt install -f
+          ```
+
+          ### Build Information
+          - **Commit**: [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          - **Branch**: `${{ github.ref_name }}`
+          - **Build Date**: ${{ github.event.head_commit.timestamp }}
+          - **CI Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ### ⚠️ Pre-release Notice
+          This is a development build that may contain:
+          - Unstable features
+          - Potential bugs
+          - Incomplete documentation
+
+          For stable releases, see the [official releases](https://github.com/${{ github.repository }}/releases) page.
+
+          ---
+          *This release was automatically created by GitHub Actions CI/CD pipeline.*
         files: |
           *.deb
           *.buildinfo
@@ -117,26 +136,21 @@ jobs:
     - name: Release Status
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       run: |
-        echo "✅ Build completed successfully!"
-        echo "📦 Debian packages available in workflow artifacts"
+        echo "Build completed successfully!"
+        echo "Debian packages available in workflow artifacts"
         echo ""
-        echo "⚠️  If release creation failed above (403 Forbidden):"
+        echo "If release creation failed (403 Forbidden):"
         echo ""
-        echo "🔧 REQUIRED FIX: Update Repository Permissions"
-        echo "📋 Exact steps:"
-        echo "   1. Go to: https://github.com/YOUR_USERNAME/YOUR_REPO/settings/actions"
-        echo "   2. Scroll to 'Workflow permissions'"
-        echo "   3. Select: 'Read and write permissions'"
-        echo "   4. Check: 'Allow GitHub Actions to create and approve pull requests'"
-        echo "   5. Click: 'Save' button"
-        echo "   6. Push another commit to test the fix"
+        echo "REQUIRED FIX: Update Repository Permissions"
+        echo "Steps:"
+        echo "   1. Go to repository Settings > Actions > General"
+        echo "   2. Set 'Workflow permissions' to 'Read and write permissions'"
+        echo "   3. Check 'Allow GitHub Actions to create and approve pull requests'"
+        echo "   4. Save and push another commit to test"
         echo ""
-        echo "🔑 Alternative: Create RELEASE_TOKEN secret"
-        echo "   - Generate PAT with 'repo' scope at: https://github.com/settings/tokens"
-        echo "   - Add to repo secrets as 'RELEASE_TOKEN'"
+        echo "Alternative: Create RELEASE_TOKEN secret with a Personal Access Token"
         echo ""
-        echo "📁 Your packages are always available here:"
-        echo "   Actions → This workflow run → Artifacts → debian-package"
+        echo "Packages are always available in: Actions > This workflow > Artifacts"
 
     - name: Cleanup Nightly Tag
       if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
@@ -151,10 +165,50 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: Release ${{ github.ref_name }}
         body: |
-          Official release ${{ github.ref_name }}
+          ## Unified Mobile Controller (UMC) - ${{ github.ref_name }}
 
-          ## Downloads
-          - Download the .deb package from the assets below
+          Official stable release of Unified Mobile Controller.
+
+          ### What's New
+          See the automatically generated release notes below for a complete list of changes, features, and bug fixes included in this release.
+
+          ### Installation
+          ```bash
+          # Download and install the Debian package
+          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/umc_*.deb
+          sudo dpkg -i umc_*.deb
+          sudo apt install -f
+
+          # Or install from source
+          git clone https://github.com/${{ github.repository }}.git
+          cd ${{ github.event.repository.name }}
+          pip install -r requirements.txt
+          python main.py
+          ```
+
+          ### System Requirements
+          - **OS**: Linux (Ubuntu/Debian recommended)
+          - **Python**: 3.10 or higher
+          - **Tools**: ADB, Scrcpy
+          - **Display**: X11 or Wayland
+
+          ### Package Contents
+          - Pre-compiled application binary
+          - PySide6 GUI framework
+          - Desktop integration files
+          - System shortcuts and documentation
+
+          ### Verification
+          - **SHA256 checksums** are available in the build artifacts
+          - **Build logs** can be viewed in the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions)
+
+          ### Support
+          - **Documentation**: [README.md](${{ github.server_url }}/${{ github.repository }}/blob/main/README.md)
+          - **Issues**: [GitHub Issues](${{ github.server_url }}/${{ github.repository }}/issues)
+          - **Discussions**: [GitHub Discussions](${{ github.server_url }}/${{ github.repository }}/discussions)
+
+          ---
+          *Released on ${{ github.event.head_commit.timestamp }} | Built by GitHub Actions*
         files: |
           *.deb
           *.buildinfo
