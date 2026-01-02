@@ -73,14 +73,13 @@ ApplicationWindow {
                         }
                     }
                 }
-                
-                // Bottom divider for header
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    height: 1
-                    color: Style.surfaceLight
-                }
+            }
+            
+            // Bottom divider for header (Moved out to ColumnLayout)
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: Style.surfaceLight
             }
             
             Connections {

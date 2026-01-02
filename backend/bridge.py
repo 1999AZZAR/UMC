@@ -8,10 +8,14 @@ class BackendBridge(QObject):
     packagesChanged = Signal(list, arguments=['packages'])
     statusMessage = Signal(str, arguments=['message'])
     launchModeChanged = Signal(str, arguments=['mode'])
+    launchWithScreenOffChanged = Signal(bool, arguments=['enabled'])
+    audioForwardingChanged = Signal(bool, arguments=['enabled'])
     
     # Internal Signals to trigger worker
     requestDevices = Signal()
     requestPackages = Signal(str)
+    requestToggleScreen = Signal(str)
+    requestScrcpyShortcut = Signal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -20,6 +24,8 @@ class BackendBridge(QObject):
         self._devices = []
         self._packages = []
         self._launch_mode = "Tablet" # Default
+        self._launch_with_screen_off = False
+        self._audio_forwarding = False
         
         # Setup Worker Thread
         self._thread = QThread()
@@ -29,6 +35,8 @@ class BackendBridge(QObject):
         # Connect Signals
         self.requestDevices.connect(self._worker.fetch_devices)
         self.requestPackages.connect(self._worker.fetch_packages)
+        self.requestToggleScreen.connect(self._worker.toggle_device_screen)
+        self.requestScrcpyShortcut.connect(self._worker.send_scrcpy_shortcut)
         
         self._worker.devicesReady.connect(self._on_devices_ready)
         self._worker.packagesReady.connect(self._on_packages_ready)
@@ -52,6 +60,9 @@ class BackendBridge(QObject):
 
     def get_launch_mode(self):
         return self._launch_mode
+    
+    def get_launch_with_screen_off(self):
+        return self._launch_with_screen_off
 
     def get_current_device_serial(self):
         return self._current_device_serial
@@ -61,9 +72,24 @@ class BackendBridge(QObject):
             self._launch_mode = mode
             self.launchModeChanged.emit(mode)
 
+    def set_launch_with_screen_off(self, enabled):
+        if self._launch_with_screen_off != enabled:
+            self._launch_with_screen_off = enabled
+            self.launchWithScreenOffChanged.emit(enabled)
+
+    def get_audio_forwarding(self):
+        return self._audio_forwarding
+
+    def set_audio_forwarding(self, enabled):
+        if self._audio_forwarding != enabled:
+            self._audio_forwarding = enabled
+            self.audioForwardingChanged.emit(enabled)
+
     devices = Property(list, fget=get_devices, notify=devicesChanged)
     packages = Property(list, fget=get_packages, notify=packagesChanged)
     launchMode = Property(str, fget=get_launch_mode, fset=set_launch_mode, notify=launchModeChanged)
+    launchWithScreenOff = Property(bool, fget=get_launch_with_screen_off, fset=set_launch_with_screen_off, notify=launchWithScreenOffChanged)
+    audioForwarding = Property(bool, fget=get_audio_forwarding, fset=set_audio_forwarding, notify=audioForwardingChanged)
     currentDeviceSerial = Property(str, fget=get_current_device_serial, notify=statusMessage) # statusMessage is emitted when selected, good enough for now or I can add a dedicated signal.
 
     @Slot()
@@ -97,6 +123,29 @@ class BackendBridge(QObject):
         self.requestPackages.emit(serial)
 
     @Slot(str)
+    def toggle_screen(self, serial):
+        if not serial:
+            return
+        self.statusMessage.emit(f"Toggling Power (Sleep/Wake) for {serial}")
+        self.requestToggleScreen.emit(serial)
+    
+    @Slot(str)
+    def toggle_scrcpy_display(self, serial):
+        """Sends Super+o (Screen Off) via xdotool to the window"""
+        if not serial:
+            return
+        self.statusMessage.emit(f"Sending Screen Off (Super+o) to {serial}...")
+        self.requestScrcpyShortcut.emit(serial, "screen_off")
+        
+    @Slot(str)
+    def turn_scrcpy_display_on(self, serial):
+        """Sends Super+Shift+o (Screen On) via xdotool to the window"""
+        if not serial:
+            return
+        self.statusMessage.emit(f"Sending Screen On (Super+Shift+o) to {serial}...")
+        self.requestScrcpyShortcut.emit(serial, "screen_on")
+
+    @Slot(str)
     def launch_app(self, package_name):
         if not self._current_device_serial:
             self.statusMessage.emit("No device selected")
@@ -125,10 +174,18 @@ class BackendBridge(QObject):
             package_name,
             width=width,
             height=height,
-            dpi=density
+            dpi=density,
+            turn_screen_off=self._launch_with_screen_off,
+            forward_audio=self._audio_forwarding
         )
         
         if success:
             self.statusMessage.emit(f"Launched {package_name}")
         else:
             self.statusMessage.emit("Failed to launch scrcpy")
+
+    def cleanup(self):
+        """Stops the worker thread gracefully."""
+        if self._thread.isRunning():
+            self._thread.quit()
+            self._thread.wait()

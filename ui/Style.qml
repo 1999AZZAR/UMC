@@ -2,41 +2,43 @@ pragma Singleton
 import QtQuick 2.15
 
 QtObject {
-    // Color Palette (Dark Theme)
-    property color background: "#121212"
-    property color surface: "#1E1E1E"
-    property color surfaceLight: "#2C2C2C"
-    property color surfaceHighlight: "#383838"
+    // Color Palette (Professional Dark Theme)
+    property color background: "#1E1E1E"    // VSCode-like dark background
+    property color surface: "#252526"       // Slightly lighter surface
+    property color surfaceLight: "#333333"  // Hover/Input fields
+    property color surfaceHighlight: "#37373D" // Selection highlight
     
-    property color textPrimary: "#E0E0E0"
-    property color textSecondary: "#A0A0A0"
-    property color textDisabled: "#606060"
+    property color textPrimary: "#CCCCCC"   // Softer white for main text
+    property color textSecondary: "#969696" // Muted gray for subtitles
+    property color textDisabled: "#5A5A5A"
     
-    property color accent: "#BB86FC"
-    property color accentVariant: "#3700B3"
-    property color accentSecondary: "#03DAC6"
+    // Professional Accent (Muted Blue/Azure)
+    property color accent: "#007ACC"        // Standard "Tech Blue"
+    property color accentVariant: "#005F9E" // Darker shade
+    property color accentSecondary: "#4EC9B0" // Teal for specific highlights
     
-    property color error: "#CF6679"
-    property color success: "#00C853"
+    property color error: "#F48771"         // Soft Red
+    property color success: "#89D185"       // Soft Green
+    property color warning: "#CCA700"       // Soft Yellow
     
-    property color divider: "#2C2C2C"
+    property color divider: "#3E3E42"
 
     // Layout
-    property int sidebarWidth: 260
-    property int headerHeight: 64
-    property int cornerRadius: 12
+    property int sidebarWidth: 280
+    property int headerHeight: 60
+    property int cornerRadius: 4            // Sharper corners look more "tool-like"
     property int spacingSmall: 8
     property int spacingMedium: 16
     property int spacingLarge: 24
     
     // Typography
-    property font headerFont: Qt.font({family: "Roboto", pointSize: 20, weight: Font.Bold})
-    property font subHeaderFont: Qt.font({family: "Roboto", pointSize: 14, weight: Font.DemiBold})
-    property font bodyFont: Qt.font({family: "Roboto", pointSize: 11})
-    property font bodySmallFont: Qt.font({family: "Roboto", pointSize: 10})
-    property font iconFont: Qt.font({family: "Font Awesome 5 Free", pointSize: 16}) // Placeholder for if we had an icon font
+    property font headerFont: Qt.font({family: "Segoe UI", pointSize: 16, weight: Font.DemiBold})
+    property font subHeaderFont: Qt.font({family: "Segoe UI", pointSize: 13, weight: Font.Medium})
+    property font bodyFont: Qt.font({family: "Segoe UI", pointSize: 11})
+    property font bodySmallFont: Qt.font({family: "Segoe UI", pointSize: 10})
+    property font iconFont: Qt.font({family: "Segoe UI Emoji", pointSize: 14}) 
     
     // Animation
     property int animDurationShort: 100
-    property int animDurationNormal: 250
+    property int animDurationNormal: 200
 }

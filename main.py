@@ -28,7 +28,9 @@ def main():
     if not engine.rootObjects():
         sys.exit(-1)
 
-    sys.exit(app.exec())
+    ret = app.exec()
+    bridge.cleanup()
+    sys.exit(ret)
 
 if __name__ == "__main__":
     main()

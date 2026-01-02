@@ -5,7 +5,7 @@ class ScrcpyHandler:
     def __init__(self):
         self.scrcpy_path = shutil.which("scrcpy") or "scrcpy"
 
-    def launch_app(self, serial: str, package_name: str, width: int = 1280, height: int = 720, dpi: int = 0):
+    def launch_app(self, serial: str, package_name: str, width: int = 1280, height: int = 720, dpi: int = 0, turn_screen_off: bool = False, forward_audio: bool = False):
         """
         Launches an app in a new virtual display using scrcpy.
         """
@@ -13,6 +13,9 @@ class ScrcpyHandler:
         if dpi > 0:
             resolution = f"{resolution}/{dpi}"
         
+        # Unique window title for finding it later
+        window_title = f"UMC - {serial}"
+
         # Core command structure based on scrcpy v2.0+ / v3.0 features
         # Note: --new-display might be feature specific or require specific android versions (Android 13+)
         # For compatibility, we try to use the most robust command set.
@@ -22,11 +25,18 @@ class ScrcpyHandler:
             "--serial", serial,
             f"--new-display={resolution}",   # Create a virtual display
             f"--start-app={package_name}",   # Start specific app
-            "--no-audio-playback",           # Optional: handled by system or customized
-            "--window-title", package_name,
+            "--window-title", window_title,
             "--force-adb-forward",
             "--no-cleanup"                   # Keep display alive if needed (optional)
         ]
+        
+        # Audio handling: scrcpy sends audio by default in v2.0+
+        # If we DO NOT want audio, we add --no-audio (or --no-audio-playback depending on version, --no-audio is standard)
+        if not forward_audio:
+            cmd.append("--no-audio")
+
+        if turn_screen_off:
+            cmd.append("--turn-screen-off")
         
         print(f"Executing: {' '.join(cmd)}")
         

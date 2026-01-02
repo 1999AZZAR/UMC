@@ -11,22 +11,25 @@ Rectangle {
     
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Style.spacingMedium
-        spacing: Style.spacingMedium
+        anchors.margins: 0
+        spacing: 0
 
-        // App Title / Logo Area
-        Item {
+        // App Header
+        Rectangle {
             Layout.fillWidth: true
-            height: 40
+            height: Style.headerHeight
+            color: Style.background
             
             RowLayout {
-                anchors.centerIn: parent
-                spacing: 10
+                anchors.fill: parent
+                anchors.leftMargin: Style.spacingMedium
+                anchors.rightMargin: Style.spacingMedium
+                spacing: 12
                 
                 Rectangle {
-                    width: 32
-                    height: 32
-                    radius: 8
+                    width: 24
+                    height: 24
+                    radius: 4
                     color: Style.accent
                     
                     Text {
@@ -34,58 +37,67 @@ Rectangle {
                         text: "U"
                         color: "white"
                         font.bold: true
-                        font.pixelSize: 18
+                        font.family: Style.headerFont.family
+                        font.pixelSize: 14
                     }
                 }
                 
                 Text {
-                    text: "UMC"
+                    text: "UMC Manager"
                     font: Style.headerFont
                     color: Style.textPrimary
                 }
+                
+                Item { Layout.fillWidth: true }
             }
         }
         
         Rectangle {
-            height: 1
             Layout.fillWidth: true
+            height: 1
             color: Style.divider
         }
 
-        // Devices Header
-        RowLayout {
+        // Section Title: Devices
+        Item {
             Layout.fillWidth: true
+            height: 40
             
-            Text {
-                text: "Connected Devices"
-                font: Style.bodySmallFont
-                color: Style.textSecondary
-                Layout.fillWidth: true
-            }
-            
-            // Refresh Button (Icon style)
-            Rectangle {
-                width: 28
-                height: 28
-                radius: 14
-                color: refreshArea.containsMouse ? Style.surfaceLight : "transparent"
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Style.spacingMedium
+                anchors.rightMargin: Style.spacingMedium
                 
                 Text {
-                    anchors.centerIn: parent
-                    text: "↻" // Simple unicode icon
-                    color: Style.accent
-                    font.bold: true
-                    font.pixelSize: 16
-                    rotation: refreshArea.pressed ? 180 : 0
-                    Behavior on rotation { NumberAnimation { duration: 200 } }
+                    text: "CONNECTED DEVICES"
+                    font.family: Style.bodySmallFont.family
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    color: Style.textSecondary
+                    Layout.fillWidth: true
                 }
                 
-                MouseArea {
-                    id: refreshArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: bridge.refresh_devices()
+                // Refresh Button
+                Item {
+                    width: 24
+                    height: 24
+                    
+                    Icon {
+                        anchors.centerIn: parent
+                        name: "refresh"
+                        size: 14
+                        color: refreshArea.pressed ? Style.textPrimary : Style.textSecondary
+                        rotation: refreshArea.pressed ? 180 : 0
+                        Behavior on rotation { NumberAnimation { duration: 200 } }
+                    }
+                    
+                    MouseArea {
+                        id: refreshArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: bridge.refresh_devices()
+                    }
                 }
             }
         }
@@ -97,13 +109,12 @@ Rectangle {
             Layout.fillHeight: true
             clip: true
             model: bridge ? bridge.devices : []
-            spacing: 5
+            boundsBehavior: Flickable.StopAtBounds
             
             delegate: Rectangle {
                 id: deviceDelegate
                 width: ListView.view.width
-                height: 60
-                radius: Style.cornerRadius
+                height: 50
                 color: {
                     if (bridge && bridge.currentDeviceSerial === modelData.serial) return Style.surfaceHighlight
                     return ma.containsMouse ? Style.surfaceLight : "transparent"
@@ -111,48 +122,6 @@ Rectangle {
                 
                 property bool isSelected: bridge && bridge.currentDeviceSerial === modelData.serial
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 12
-                    
-                    // Device Icon
-                    Rectangle {
-                        width: 36
-                        height: 36
-                        radius: 18
-                        color: parent.parent.isSelected ? Style.accent : Style.surfaceLight
-                        
-                        Text {
-                            anchors.centerIn: parent
-                            text: "📱"
-                            font.pixelSize: 18
-                        }
-                    }
-                    
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        
-                        Text {
-                            text: modelData.model
-                            color: Style.textPrimary
-                            font.family: Style.bodyFont.family
-                            font.pointSize: Style.bodyFont.pointSize
-                            font.bold: true
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-                        Text {
-                            text: modelData.serial
-                            color: Style.textSecondary
-                            font.pixelSize: 10
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-                    }
-                }
-                
                 MouseArea {
                     id: ma
                     anchors.fill: parent
@@ -162,54 +131,236 @@ Rectangle {
                         bridge.select_device(modelData.serial)
                     }
                 }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.spacingMedium
+                    anchors.rightMargin: Style.spacingMedium
+                    spacing: 12
+                    
+                    // Device Icon
+                    Icon {
+                        name: "device_phone"
+                        size: 16
+                        color: parent.parent.isSelected ? Style.accent : Style.textSecondary
+                    }
+                    
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        
+                        Text {
+                            text: modelData.model
+                            color: parent.parent.parent.isSelected ? Style.textPrimary : Style.textSecondary
+                            font.family: Style.bodyFont.family
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Text {
+                            text: modelData.serial
+                            color: Style.textDisabled
+                            font.pixelSize: 10
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    // Actions Row
+                    Row {
+                        spacing: 4
+                        visible: ma.containsMouse || parent.parent.isSelected
+                        
+                        // Screen Toggle
+                        Rectangle {
+                            width: 24
+                            height: 24
+                            radius: 4
+                            color: screenBtnArea.containsMouse ? Style.background : "transparent"
+                            
+                            Icon {
+                                anchors.centerIn: parent
+                                name: "screen_off"
+                                size: 14
+                                color: screenBtnArea.pressed ? Style.accent : Style.textSecondary
+                            }
+                            
+                            MouseArea {
+                                id: screenBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    if (bridge) {
+                                        bridge.toggle_scrcpy_display(modelData.serial)
+                                        mouse.accepted = true
+                                    }
+                                }
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: "Turn Screen Off (Scrcpy)"
+                                ToolTip.delay: 500
+                            }
+                        }
+
+                        // Power Button
+                        Rectangle {
+                            width: 24
+                            height: 24
+                            radius: 4
+                            color: powerBtnArea.containsMouse ? Style.background : "transparent"
+                            
+                            Icon {
+                                anchors.centerIn: parent
+                                name: "power"
+                                size: 14
+                                color: powerBtnArea.pressed ? Style.error : Style.textSecondary
+                            }
+                            
+                            MouseArea {
+                                id: powerBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    if (bridge) {
+                                        bridge.toggle_screen(modelData.serial)
+                                        // Prevent selecting the row when clicking the button
+                                        mouse.accepted = true
+                                    }
+                                }
+                                ToolTip.visible: containsMouse
+                            }
+                        }
+                    }
+                }
             }
         }
         
         Rectangle {
-            height: 1
             Layout.fillWidth: true
+            height: 1
             color: Style.divider
         }
 
-        // Launch Mode Section
+        // Settings / Launch Mode Area
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: Style.spacingSmall
+            Layout.margins: Style.spacingMedium
+            spacing: 12
 
             Text {
-                text: "Launch Mode"
+                text: "LAUNCH SETTINGS"
+                font.family: Style.bodySmallFont.family
+                font.pixelSize: 10
+                font.weight: Font.DemiBold
                 color: Style.textSecondary
-                font: Style.bodySmallFont
             }
 
+            // Mode Switcher
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                spacing: 0
                 
                 Repeater {
                     model: ["Tablet", "Phone"]
                     delegate: Rectangle {
                         Layout.fillWidth: true
-                        height: 40
-                        radius: Style.cornerRadius
+                        height: 28
+                        color: (bridge && bridge.launchMode === modelData) ? Style.accent : Style.surfaceLight
                         
-                        property bool isActive: bridge && bridge.launchMode === modelData
-                        
-                        color: isActive ? Style.accentVariant : Style.surfaceLight
-                        border.color: isActive ? Style.accent : "transparent"
-                        border.width: 1
+                        // First item radius left, last item radius right
+                        radius: 2
                         
                         Text {
                             anchors.centerIn: parent
                             text: modelData
-                            color: parent.isActive ? "white" : Style.textSecondary
-                            font: Style.bodyFont
+                            color: (bridge && bridge.launchMode === modelData) ? "white" : Style.textSecondary
+                            font.pixelSize: 11
+                            font.weight: Font.Medium
                         }
                         
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             onClicked: if (bridge) bridge.launchMode = modelData
+                        }
+                    }
+                }
+            }
+            
+            // Checkboxes
+            ColumnLayout {
+                spacing: 8
+                
+                CheckBox {
+                    id: screenOffCheck
+                    text: "Launch with Screen Off"
+                    checked: bridge ? bridge.launchWithScreenOff : false
+                    onCheckedChanged: if (bridge) bridge.launchWithScreenOff = checked
+                    
+                    contentItem: Text {
+                        text: screenOffCheck.text
+                        font: Style.bodySmallFont
+                        color: Style.textPrimary
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: screenOffCheck.indicator.width + 8
+                    }
+                    
+                    indicator: Rectangle {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        x: 0
+                        y: parent.height / 2 - height / 2
+                        radius: 3
+                        border.color: screenOffCheck.checked ? Style.accent : Style.textSecondary
+                        color: screenOffCheck.checked ? Style.accent : "transparent"
+                        
+                        Icon {
+                            anchors.centerIn: parent
+                            name: "check" // We need to add check to Icon.qml or use simple rect
+                            visible: screenOffCheck.checked
+                            size: 10
+                            color: "white"
+                        }
+                        // Fallback simple check indicator if icon missing
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 8; height: 8; radius: 1
+                            color: "white"
+                            visible: screenOffCheck.checked && true // Replace with Icon usage
+                        }
+                    }
+                }
+                
+                CheckBox {
+                    id: audioCheck
+                    text: "Forward Audio"
+                    checked: bridge ? bridge.audioForwarding : false
+                    onCheckedChanged: if (bridge) bridge.audioForwarding = checked
+                    
+                    contentItem: Text {
+                        text: audioCheck.text
+                        font: Style.bodySmallFont
+                        color: Style.textPrimary
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: audioCheck.indicator.width + 8
+                    }
+                    
+                    indicator: Rectangle {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        x: 0
+                        y: parent.height / 2 - height / 2
+                        radius: 3
+                        border.color: audioCheck.checked ? Style.accent : Style.textSecondary
+                        color: audioCheck.checked ? Style.accent : "transparent"
+                        
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 8; height: 8; radius: 1
+                            color: "white"
+                            visible: audioCheck.checked
                         }
                     }
                 }

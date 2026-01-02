@@ -85,6 +85,56 @@ class ADBWorker(QObject):
         except Exception as e:
             self.errorOccurred.emit(f"Failed to fetch packages: {str(e)}")
 
+    @Slot(str)
+    def toggle_device_screen(self, serial: str):
+        """Toggles the device screen power (KEYCODE_POWER)."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            print(f"Mock toggling screen for {serial}")
+            return
+
+        try:
+            # KEYCODE_POWER = 26
+            subprocess.run(
+                [self.adb_path, "-s", serial, "shell", "input", "keyevent", "26"], 
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        except Exception as e:
+            self.errorOccurred.emit(f"Failed to toggle screen for {serial}: {str(e)}")
+
+    @Slot(str, str)
+    def send_scrcpy_shortcut(self, serial: str, shortcut: str):
+        """
+        Sends a shortcut to the scrcpy window for the given serial using xdotool.
+        shortcut: 'screen_off' (Super+o) or 'screen_on' (Super+Shift+o)
+        """
+        if self.mock_mode:
+            print(f"Mock sending shortcut {shortcut} to {serial}")
+            return
+
+        window_name = f"UMC - {serial}"
+        key_combo = "Super+o" if shortcut == 'screen_off' else "Super+Shift+o"
+        
+        try:
+            # Check if xdotool exists first (could cache this)
+            if not shutil.which("xdotool"):
+                self.errorOccurred.emit("xdotool not found. Install it to use this feature.")
+                return
+
+            # Search for window and send key
+            # xdotool search --name "Title" windowactivate --sync key keys
+            cmd = [
+                "xdotool", "search", "--name", window_name, 
+                "windowactivate", "--sync", 
+                "key", key_combo
+            ]
+            
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            
+        except subprocess.CalledProcessError:
+            self.errorOccurred.emit(f"Could not find window for device {serial}")
+        except Exception as e:
+            self.errorOccurred.emit(f"Failed to send shortcut: {str(e)}")
+
     def get_device_info(self, serial: str) -> Tuple[int, int, int]:
         """
         Synchronous helper to get resolution and density.
