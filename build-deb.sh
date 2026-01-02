@@ -9,7 +9,21 @@ sudo apt update
 sudo apt install -y build-essential debhelper devscripts python3 python3-setuptools dh-python python3-all
 
 echo "Installing PySide6 dependencies..."
-sudo apt install -y libpyside6-py3-6.8 libshiboken6-py3-6.8 python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets python3-pyside6.qtqml python3-pyside6.qtquick python3-pyside6.qtnetwork python3-pyside6.qtopengl
+echo "Note: PySide6 packages are available in Debian testing/unstable repositories."
+echo "If you're on an older Debian/Ubuntu version, PySide6 will be installed via pip."
+
+# Update package lists first
+sudo apt update
+
+# Try to install PySide6 packages from apt (available in Debian testing/unstable)
+if apt-cache show python3-pyside6.qtcore >/dev/null 2>&1; then
+  echo "Installing PySide6 from apt repositories..."
+  sudo apt install -y python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets python3-pyside6.qtqml python3-pyside6.qtquick python3-pyside6.qtnetwork python3-pyside6.qtopengl
+else
+  echo "PySide6 packages not available in apt repositories, installing via pip..."
+  echo "This is normal on older Debian/Ubuntu versions."
+  pip3 install PySide6
+fi
 
 echo "Installing Android tools..."
 sudo apt install -y android-tools-adb

@@ -22,7 +22,17 @@ jobs:
 
     - name: Install PySide6 dependencies
       run: |
-        sudo apt install -y libpyside6-py3-6.8 libshiboken6-py3-6.8 python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets python3-pyside6.qtqml python3-pyside6.qtquick python3-pyside6.qtnetwork python3-pyside6.qtopengl
+        # Update package lists to ensure we have the latest package information
+        sudo apt update
+
+        # Try to install PySide6 packages (available in Debian testing/unstable)
+        # If not available, fall back to pip installation
+        if apt-cache show python3-pyside6.qtcore >/dev/null 2>&1; then
+          sudo apt install -y python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets python3-pyside6.qtqml python3-pyside6.qtquick python3-pyside6.qtnetwork python3-pyside6.qtopengl
+        else
+          echo "PySide6 packages not available in apt, installing via pip..."
+          pip3 install PySide6
+        fi
 
     - name: Install Android tools
       run: |

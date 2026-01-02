@@ -49,9 +49,15 @@ sudo apt install -f
 ```
 
 The Debian package includes:
-- All Python dependencies (PySide6)
+- All Python dependencies (PySide6, when available in repositories)
 - Desktop integration
 - System integration with Android tools
+
+**Note**: PySide6 packages are available in Debian testing/unstable. On older Debian/Ubuntu versions, you may need to install PySide6 manually:
+
+```bash
+pip3 install PySide6
+```
 
 ### Building from Source
 
