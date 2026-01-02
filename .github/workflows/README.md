@@ -53,13 +53,28 @@ Automatically builds and releases Debian packages for the Unified Mobile Control
 
 #### Troubleshooting
 
-**403 Forbidden Error (Most Common)**:
-1. **Go to repository Settings**
-2. **Navigate**: Actions → General
-3. **Change**: "Workflow permissions" to **"Read and write permissions"**
-4. **Check**: "Allow GitHub Actions to create and approve pull requests"
-5. **Save changes**
-6. **Test**: Push a commit to trigger the workflow again
+**No Releases Being Created**:
+
+1. **Check Branch Name**:
+   - Releases only create on `main` or `master` branch pushes
+   - Verify you're pushing to the correct branch
+   - Check workflow logs for: `🎯 Branch: refs/heads/main`
+
+2. **Verify Repository Permissions**:
+   - Go to **Settings** → **Actions** → **General**
+   - **Workflow permissions**: Must be **"Read and write permissions"**
+   - **Check**: "Allow GitHub Actions to create and approve pull requests"
+   - **Save** and test with a new push
+
+3. **Check Workflow Status**:
+   - Go to **Actions** tab
+   - Find the latest workflow run
+   - Look for the "Create Release" step
+   - Check if it says "Skipped" or ran successfully
+
+**403 Forbidden Error**:
+- Same as repository permissions above
+- Or use `RELEASE_TOKEN` secret (see below)
 
 **Alternative: Personal Access Token**
 If repository permissions can't be changed:
@@ -80,6 +95,12 @@ If repository permissions can't be changed:
 - Even if releases fail, artifacts are always uploaded
 - Download from Actions → Workflow run → Artifacts
 - Look for `debian-package` artifact
+
+**Debug Steps**:
+1. Push a commit to main/master
+2. Check Actions tab for workflow run
+3. Look for "Debug Branch Info" step output
+4. Verify "Create Release" step doesn't say "skipped"
 
 #### Manual Testing
 
