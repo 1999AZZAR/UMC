@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_install:
+	dh_install
+	install -d debian/umc/usr/bin
+	echo '#!/usr/bin/env python3' > debian/umc/usr/bin/umc
+	cat main.py >> debian/umc/usr/bin/umc
+	chmod 755 debian/umc/usr/bin/umc

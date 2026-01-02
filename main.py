@@ -16,7 +16,12 @@ def main():
     engine.rootContext().setContextProperty("bridge", bridge)
 
     # Load main QML file
-    qml_file = os.path.join(os.path.dirname(__file__), "ui/main.qml")
+    # When installed, UI files are in /usr/share/umc/ui/
+    ui_dir = os.path.join(os.path.dirname(__file__), "../share/umc/ui")
+    if not os.path.exists(ui_dir):
+        # Fallback for development
+        ui_dir = os.path.join(os.path.dirname(__file__), "ui")
+    qml_file = os.path.join(ui_dir, "main.qml")
     engine.load(QUrl.fromLocalFile(qml_file))
 
     if not engine.rootObjects():

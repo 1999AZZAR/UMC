@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+# Remove desktop file
+if [ -f /usr/share/applications/umc.desktop ]; then
+    rm -f /usr/share/applications/umc.desktop
+fi
+
+#DEBHELPER#
+
+exit 0

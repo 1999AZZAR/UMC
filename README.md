@@ -38,9 +38,44 @@ The system operates on a multi-threaded architecture to ensure UI responsiveness
 
 ## Installation
 
+### Option 1: Install from Debian Package (Recommended)
+
+Download the latest `.deb` package from the [Releases](https://github.com/project/umc/releases) page and install it:
+
+```bash
+sudo dpkg -i umc_*.deb
+# Fix any missing dependencies
+sudo apt install -f
+```
+
+The Debian package includes:
+- All Python dependencies (PySide6)
+- Desktop integration
+- System integration with Android tools
+
+### Building from Source
+
+To build the Debian package locally:
+
+```bash
+./build-deb.sh
+```
+
+This will create the `.deb` package in the parent directory.
+
+### Continuous Integration
+
+This project uses GitHub Actions for automated building and releasing:
+
+- **Pull Requests**: Builds and tests the package
+- **Pushes to main/master**: Builds the package
+- **Tags (v*)**: Creates a GitHub release with the built `.deb` package
+
+### Option 2: Manual Installation from Source
+
 1. Clone the repository or extract the source code.
 2. Install the required Python packages:
-   
+
    ```bash
    pip install -r requirements.txt
    ```

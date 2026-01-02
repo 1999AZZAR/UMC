@@ -1,0 +1,18 @@
+Source: umc
+Section: utils
+Priority: optional
+Maintainer: Unified Mobile Controller Team <umc@project.local>
+Build-Depends: debhelper-compat (= 13), python3, python3-setuptools
+Standards-Version: 4.5.1
+Homepage: https://github.com/project/umc
+
+Package: umc
+Architecture: all
+Depends: python3 (>= 3.10), python3-pyside6.qtcore, python3-pyside6.qtgui, python3-pyside6.qtqml, python3-pyside6.qtquick, android-tools-adb, ${misc:Depends}
+Description: Unified Mobile Controller
+ A desktop application for managing Android devices and launching applications
+ in isolated virtual displays using scrcpy and adb.
+ .
+ This application provides a graphical interface to interact with Android devices
+ connected via USB or TCP/IP. It allows users to browse installed applications
+ and launch them in separate, native-like windows on the desktop.

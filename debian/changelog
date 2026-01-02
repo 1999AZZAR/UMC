@@ -1,0 +1,7 @@
+umc (1.0.0-1) unstable; urgency=medium
+
+  * Initial release of Unified Mobile Controller
+  * Desktop application for managing Android devices
+  * Supports launching applications in virtual displays using scrcpy
+
+ -- Unified Mobile Controller Team <umc@project.local>  Fri, 02 Jan 2026 00:00:00 +0000

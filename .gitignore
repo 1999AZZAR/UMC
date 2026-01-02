@@ -32,3 +32,18 @@ Thumbs.db
 UMC/memory.db
 out.log
 err.log
+
+# Debian packaging
+debian/*.debhelper
+debian/*.debhelper.log
+debian/*.substvars
+debian/files
+debian/umc/
+*.deb
+*.buildinfo
+*.changes
+
+# Build artifacts (parent directory)
+/../umc_*.deb
+/../umc_*.buildinfo
+/../umc_*.changes

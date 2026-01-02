@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Unified Mobile Controller
+Comment=Manage Android devices and launch applications in virtual displays
+Exec=umc
+Icon=umc
+Terminal=false
+Categories=Utility;Development;
+Keywords=android;mobile;device;scrcpy;adb;

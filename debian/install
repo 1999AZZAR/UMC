@@ -1,0 +1,5 @@
+ui/* usr/share/umc/ui/
+assets/umc.svg usr/share/umc/assets/
+backend/* usr/lib/python3/dist-packages/backend/
+debian/umc.desktop usr/share/applications/
+assets/umc.svg usr/share/icons/hicolor/scalable/apps/

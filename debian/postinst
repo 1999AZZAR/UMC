@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+# Desktop file is already installed by dh_install
+# Just update desktop database
+if [ -x /usr/bin/update-desktop-database ]; then
+    update-desktop-database
+fi
+
+#DEBHELPER#
+
+exit 0
