@@ -69,25 +69,29 @@ jobs:
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: nightly-${{ github.run_number }}
-        name: Nightly Release ${{ github.run_number }}
+        name: Nightly Release ${{ github.run_number }}.${{ github.run_attempt }}
         body: |
           Automated nightly release from ${{ github.ref_name }} branch.
 
-          ## Changes
-          - Automated build from commit: ${{ github.sha }}
+          ## Build Info
+          - Commit: ${{ github.sha }}
           - Built on: ${{ github.event.head_commit.timestamp }}
+          - Run: ${{ github.run_number }}.${{ github.run_attempt }}
+          - Branch: ${{ github.ref_name }}
 
           ## Downloads
           - Download the .deb package from the assets below
+          - If release creation fails, download from the workflow artifacts
         files: |
           *.deb
           *.buildinfo
           *.changes
         draft: false
         prerelease: true
+        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      continue-on-error: true
 
     - name: Create Tagged Release
       if: startsWith(github.ref, 'refs/tags/v')
@@ -107,5 +111,6 @@ jobs:
         generate_release_notes: true
         draft: false
         prerelease: false
+        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -100,6 +100,24 @@ git push origin v1.0.1
 
 This creates a stable release with generated release notes.
 
+### Troubleshooting Releases
+
+If releases fail with a 403 error:
+
+1. **Check Repository Permissions**:
+   - Go to **Settings** → **Actions** → **General**
+   - Under **"Workflow permissions"**, select **"Read and write permissions"**
+
+2. **Alternative: Use Personal Access Token**:
+   - Create a PAT with `repo` scope at https://github.com/settings/tokens
+   - Add it as `RELEASE_TOKEN` secret in repository settings
+   - Update workflow to use `${{ secrets.RELEASE_TOKEN }}` instead of `${{ secrets.GITHUB_TOKEN }}`
+
+3. **Fallback Option**:
+   - If release creation fails, artifacts are still available in the **Actions** tab
+   - Go to the workflow run → **Artifacts** → Download the debian-package.zip
+   - Nightly releases create releases without git tags to avoid conflicts
+
 #### Manual Testing
 1. Go to **Actions** tab in GitHub
 2. Click **"Release Debian Package"** workflow
