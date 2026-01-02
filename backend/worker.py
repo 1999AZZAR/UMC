@@ -64,24 +64,102 @@ class ADBWorker(QObject):
 
     @Slot(str)
     def fetch_packages(self, serial: str):
-        """Fetches installed 3rd party packages for a specific device."""
+        """Fetches installed 3rd party packages with their display names for a specific device."""
         if self.mock_mode or serial.startswith("MOCK"):
             self.packagesReady.emit(serial, [
-                "com.android.chrome", "com.google.android.youtube", 
-                "com.whatsapp", "com.instagram.android"
+                {"package": "com.android.chrome", "name": "Chrome"},
+                {"package": "com.google.android.youtube", "name": "YouTube"},
+                {"package": "com.whatsapp", "name": "WhatsApp"},
+                {"package": "com.instagram.android", "name": "Instagram"}
             ])
             return
 
         try:
+            # First, get just package names quickly (fallback)
             cmd = [self.adb_path, "-s", serial, "shell", "pm", "list", "packages", "-3"]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             packages = []
             for line in result.stdout.strip().split('\n'):
                 if line.startswith("package:"):
-                    packages.append(line.replace("package:", "").strip())
-            
-            self.packagesReady.emit(serial, sorted(packages))
-            
+                    package_name = line.replace("package:", "").strip()
+                    packages.append(package_name)
+
+            # Emit packages with package names as fallback immediately
+            apps = [{"package": pkg, "name": pkg} for pkg in packages]
+            self.packagesReady.emit(serial, apps)
+
+            # Now try to get app names asynchronously
+            try:
+                # Get package names with APK paths
+                cmd_paths = [self.adb_path, "-s", serial, "shell", "pm", "list", "packages", "-3", "-f"]
+                result_paths = subprocess.run(cmd_paths, capture_output=True, text=True, check=True)
+                package_data = []
+                for line in result_paths.stdout.strip().split('\n'):
+                    if line.startswith("package:"):
+                        # Format: package:/path/to/apk=package.name
+                        # Split on the last '=' since paths can contain '='
+                        content = line.replace("package:", "")
+                        last_eq = content.rfind('=')
+                        if last_eq != -1:
+                            apk_path = content[:last_eq]
+                            package_name = content[last_eq + 1:]
+                            package_data.append({"package": package_name, "apk_path": apk_path})
+
+                # Update apps with real names where possible
+                updated_apps = []
+                for item in package_data[:50]:  # Limit to first 50 to avoid timeouts
+                    try:
+                        # Pull APK and get label
+                        import tempfile
+                        import os
+
+                        with tempfile.NamedTemporaryFile(suffix='.apk', delete=False) as temp_file:
+                            temp_apk = temp_file.name
+
+                        try:
+                            # Pull APK from device
+                            pull_cmd = [self.adb_path, "-s", serial, "pull", item["apk_path"], temp_apk]
+                            subprocess.run(pull_cmd, capture_output=True, timeout=10, check=True)
+
+                            # Use aapt to get app label
+                            aapt_cmd = ["aapt", "dump", "badging", temp_apk]
+                            aapt_result = subprocess.run(aapt_cmd, capture_output=True, text=True, timeout=5)
+
+                            app_name = item["package"]  # fallback
+                            # Look for "application-label:" in aapt output
+                            for line in aapt_result.stdout.split('\n'):
+                                if line.strip().startswith("application-label:"):
+                                    # Extract label value, remove quotes if present
+                                    label_part = line.split(':', 1)[1].strip()
+                                    if label_part.startswith("'") and label_part.endswith("'"):
+                                        app_name = label_part[1:-1]
+                                    elif label_part.startswith('"') and label_part.endswith('"'):
+                                        app_name = label_part[1:-1]
+                                    else:
+                                        app_name = label_part
+                                    break
+
+                            updated_apps.append({"package": item["package"], "name": app_name})
+
+                        finally:
+                            # Clean up temp APK
+                            try:
+                                os.unlink(temp_apk)
+                            except:
+                                pass
+
+                    except Exception:
+                        # Keep original package name
+                        updated_apps.append({"package": item["package"], "name": item["package"]})
+
+                # Emit updated list
+                updated_apps.sort(key=lambda x: x["name"].lower())
+                self.packagesReady.emit(serial, updated_apps)
+
+            except Exception:
+                # If anything fails, keep the original package names
+                pass
+
         except Exception as e:
             self.errorOccurred.emit(f"Failed to fetch packages: {str(e)}")
 

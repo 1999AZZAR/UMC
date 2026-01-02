@@ -18,8 +18,12 @@ Item {
         } else {
             var temp = []
             for (var i = 0; i < fullPackageList.length; i++) {
-                if (fullPackageList[i].toLowerCase().indexOf(query) !== -1) {
-                    temp.push(fullPackageList[i])
+                var app = fullPackageList[i]
+                var packageName = app.package || app
+                var appName = app.name || app
+                if (packageName.toLowerCase().indexOf(query) !== -1 ||
+                    appName.toLowerCase().indexOf(query) !== -1) {
+                    temp.push(app)
                 }
             }
             filteredList = temp
@@ -140,7 +144,7 @@ Item {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: modelData.substring(0, 1).toUpperCase()
+                                text: (modelData.name || modelData.package || modelData).substring(0, 1).toUpperCase()
                                 color: Style.accent
                                 font.bold: true
                                 font.pixelSize: 24
@@ -151,7 +155,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            text: modelData
+                            text: modelData.name || modelData.package || modelData
                             color: Style.textPrimary
                             wrapMode: Text.Wrap
                             horizontalAlignment: Text.AlignHCenter
@@ -167,7 +171,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: bridge.launch_app(modelData)
+                        onClicked: bridge.launch_app(modelData.package || modelData)
                     }
                 }
             }
