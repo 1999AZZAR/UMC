@@ -21,6 +21,7 @@ def main():
     if not os.path.exists(ui_dir):
         # Fallback for development
         ui_dir = os.path.join(os.path.dirname(__file__), "ui")
+    
     qml_file = os.path.join(ui_dir, "main.qml")
     engine.load(QUrl.fromLocalFile(qml_file))
 

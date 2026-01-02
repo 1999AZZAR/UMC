@@ -7,8 +7,8 @@ import "."
 ApplicationWindow {
     id: window
     visible: true
-    width: 1200
-    height: 800
+    width: 1280
+    height: 850
     title: "Unified Mobile Controller"
     color: Style.background
 
@@ -16,35 +16,70 @@ ApplicationWindow {
         anchors.fill: parent
         spacing: 0
 
-        Sidebar {
+        DeviceSidebar {
             Layout.fillHeight: true
+            Layout.preferredWidth: Style.sidebarWidth
         }
 
+        // Main Content Area
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // Top Bar
+            // Header
             Rectangle {
                 Layout.fillWidth: true
-                height: 60
-                color: "transparent"
+                height: Style.headerHeight
+                color: Style.background
                 
-                Text {
-                    anchors.centerIn: parent
-                    text: "Applications"
-                    font: Style.headerFont
-                    color: Style.textPrimary
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.spacingLarge
+                    anchors.rightMargin: Style.spacingLarge
+                    
+                    Text {
+                        text: "Applications"
+                        font: Style.headerFont
+                        color: Style.textPrimary
+                    }
+                    
+                    Item { Layout.fillWidth: true } // Spacer
+                    
+                    // Status Badge
+                    Rectangle {
+                        visible: statusText.text !== ""
+                        height: 32
+                        width: statusText.width + 30
+                        radius: 16
+                        color: Style.surfaceLight
+                        
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 8
+                            
+                            Rectangle {
+                                width: 8
+                                height: 8
+                                radius: 4
+                                color: Style.accent
+                            }
+                            
+                            Text {
+                                id: statusText
+                                color: Style.textPrimary
+                                font: Style.bodySmallFont
+                            }
+                        }
+                    }
                 }
                 
-                Text {
-                    id: statusText
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: 20
-                    color: Style.accent
-                    font.pixelSize: 12
+                // Bottom divider for header
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    height: 1
+                    color: Style.surfaceLight
                 }
             }
             

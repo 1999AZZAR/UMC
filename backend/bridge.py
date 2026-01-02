@@ -53,6 +53,9 @@ class BackendBridge(QObject):
     def get_launch_mode(self):
         return self._launch_mode
 
+    def get_current_device_serial(self):
+        return self._current_device_serial
+
     def set_launch_mode(self, mode):
         if self._launch_mode != mode:
             self._launch_mode = mode
@@ -61,6 +64,7 @@ class BackendBridge(QObject):
     devices = Property(list, fget=get_devices, notify=devicesChanged)
     packages = Property(list, fget=get_packages, notify=packagesChanged)
     launchMode = Property(str, fget=get_launch_mode, fset=set_launch_mode, notify=launchModeChanged)
+    currentDeviceSerial = Property(str, fget=get_current_device_serial, notify=statusMessage) # statusMessage is emitted when selected, good enough for now or I can add a dedicated signal.
 
     @Slot()
     def refresh_devices(self):
