@@ -49,27 +49,30 @@ jobs:
       run: |
         dpkg-buildpackage -us -uc -b
 
-    - name: List built files
+    - name: Prepare artifacts
       run: |
-        ls -la ../*.deb ../*.buildinfo ../*.changes
+        cp ../*.deb . 2>/dev/null || true
+        cp ../*.buildinfo . 2>/dev/null || true
+        cp ../*.changes . 2>/dev/null || true
+        ls -la *.deb *.buildinfo *.changes
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: debian-package
         path: |
-          ../*.deb
-          ../*.buildinfo
-          ../*.changes
+          *.deb
+          *.buildinfo
+          *.changes
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          ../*.deb
-          ../*.buildinfo
-          ../*.changes
+          *.deb
+          *.buildinfo
+          *.changes
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
