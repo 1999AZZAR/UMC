@@ -114,7 +114,7 @@ pip install PySide6
 #### Debian/Ubuntu Package
 ```bash
 # Download latest .deb from Releases page
-wget https://github.com/YOUR_USERNAME/YOUR_REPO/releases/latest/download/umc_*.deb
+wget https://github.com/1999AZZAR/UMC/releases/latest/download/umc_*.deb
 
 # Install package
 sudo dpkg -i umc_*.deb
@@ -132,8 +132,8 @@ sudo apt install -f  # Fix any dependencies
 #### From Source Code
 ```bash
 # Clone repository
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
+git clone https://github.com/1999AZZAR/UMC.git
+cd UMC
 
 # Install Python dependencies
 pip install -r requirements.txt
@@ -269,7 +269,7 @@ sudo usermod -a -G plugdev $USER
 ### Getting Help
 
 - Check [scrcpy documentation](https://github.com/Genymobile/scrcpy)
-- Report issues on [GitHub Issues](https://github.com/YOUR_USERNAME/YOUR_REPO/issues)
+- Report issues on [GitHub Issues](https://github.com/1999AZZAR/UMC/issues)
 - Community discussions available
 
 ### Debug Mode
@@ -285,8 +285,8 @@ python main.py --debug
 
 ```bash
 # Clone repository
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
+git clone https://github.com/1999AZZAR/UMC.git
+cd UMC
 
 # Install development dependencies
 pip install -r requirements.txt

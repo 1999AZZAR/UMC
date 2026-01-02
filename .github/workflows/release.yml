@@ -101,16 +101,16 @@ jobs:
           ### Installation
           ```bash
           # Download and install
-          wget https://github.com/${{ github.repository }}/releases/download/nightly-${{ github.run_number }}-${{ github.run_attempt }}/umc_*.deb
+          wget https://github.com/1999AZZAR/UMC/releases/download/nightly-${{ github.run_number }}-${{ github.run_attempt }}/umc_*.deb
           sudo dpkg -i umc_*.deb
           sudo apt install -f
           ```
 
           ### Build Information
-          - **Commit**: [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          - **Commit**: [`${{ github.sha }}`](https://github.com/1999AZZAR/UMC/commit/${{ github.sha }})
           - **Branch**: `${{ github.ref_name }}`
           - **Build Date**: ${{ github.event.head_commit.timestamp }}
-          - **CI Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - **CI Run**: [#${{ github.run_number }}](https://github.com/1999AZZAR/UMC/actions/runs/${{ github.run_id }})
 
           ### ⚠️ Pre-release Notice
           This is a development build that may contain:
@@ -118,7 +118,7 @@ jobs:
           - Potential bugs
           - Incomplete documentation
 
-          For stable releases, see the [official releases](https://github.com/${{ github.repository }}/releases) page.
+          For stable releases, see the [official releases](https://github.com/1999AZZAR/UMC/releases) page.
 
           ---
           *This release was automatically created by GitHub Actions CI/CD pipeline.*
@@ -175,13 +175,13 @@ jobs:
           ### Installation
           ```bash
           # Download and install the Debian package
-          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/umc_*.deb
+          wget https://github.com/1999AZZAR/UMC/releases/download/${{ github.ref_name }}/umc_*.deb
           sudo dpkg -i umc_*.deb
           sudo apt install -f
 
           # Or install from source
-          git clone https://github.com/${{ github.repository }}.git
-          cd ${{ github.event.repository.name }}
+          git clone https://github.com/1999AZZAR/UMC.git
+          cd UMC
           pip install -r requirements.txt
           python main.py
           ```
@@ -200,12 +200,12 @@ jobs:
 
           ### Verification
           - **SHA256 checksums** are available in the build artifacts
-          - **Build logs** can be viewed in the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions)
+          - **Build logs** can be viewed in the [Actions tab](https://github.com/1999AZZAR/UMC/actions)
 
           ### Support
-          - **Documentation**: [README.md](${{ github.server_url }}/${{ github.repository }}/blob/main/README.md)
-          - **Issues**: [GitHub Issues](${{ github.server_url }}/${{ github.repository }}/issues)
-          - **Discussions**: [GitHub Discussions](${{ github.server_url }}/${{ github.repository }}/discussions)
+          - **Documentation**: [README.md](https://github.com/1999AZZAR/UMC/blob/main/README.md)
+          - **Issues**: [GitHub Issues](https://github.com/1999AZZAR/UMC/issues)
+          - **Discussions**: [GitHub Discussions](https://github.com/1999AZZAR/UMC/discussions)
 
           ---
           *Released on ${{ github.event.head_commit.timestamp }} | Built by GitHub Actions*
