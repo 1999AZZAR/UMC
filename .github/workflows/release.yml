@@ -27,10 +27,17 @@ jobs:
 
         # Try to install PySide6 packages (available in Debian testing/unstable)
         # If not available, fall back to pip installation
-        if apt-cache show python3-pyside6.qtcore >/dev/null 2>&1; then
-          sudo apt install -y python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets python3-pyside6.qtqml python3-pyside6.qtquick python3-pyside6.qtnetwork python3-pyside6.qtopengl
+        if apt-cache show python3-pyside6.qtcore >/dev/null 2>&1 && \
+           apt-cache show python3-pyside6.qtgui >/dev/null 2>&1 && \
+           apt-cache show python3-pyside6.qtqml >/dev/null 2>&1 && \
+           apt-cache show python3-pyside6.qtquick >/dev/null 2>&1; then
+          echo "Installing PySide6 from apt repositories..."
+          sudo apt install -y python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets python3-pyside6.qtqml python3-pyside6.qtquick python3-pyside6.qtnetwork python3-pyside6.qtopengl || {
+            echo "Apt installation failed, falling back to pip..."
+            pip3 install PySide6
+          }
         else
-          echo "PySide6 packages not available in apt, installing via pip..."
+          echo "PySide6 packages not fully available in apt, installing via pip..."
           pip3 install PySide6
         fi
 
@@ -44,25 +51,25 @@ jobs:
 
     - name: List built files
       run: |
-        ls -la *.deb *.buildinfo *.changes
+        ls -la ../*.deb ../*.buildinfo ../*.changes
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: debian-package
         path: |
-          *.deb
-          *.buildinfo
-          *.changes
+          ../*.deb
+          ../*.buildinfo
+          ../*.changes
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          *.deb
-          *.buildinfo
-          *.changes
+          ../*.deb
+          ../*.buildinfo
+          ../*.changes
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

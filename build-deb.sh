@@ -6,7 +6,7 @@ set -e
 
 echo "Installing build dependencies..."
 sudo apt update
-sudo apt install -y build-essential debhelper devscripts python3 python3-setuptools dh-python python3-all
+sudo apt install -y build-essential debhelper devscripts python3 python3-setuptools dh-python python3-all debhelper-compat
 
 echo "Installing PySide6 dependencies..."
 echo "Note: PySide6 packages are available in Debian testing/unstable repositories."
