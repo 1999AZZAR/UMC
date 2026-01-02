@@ -74,8 +74,37 @@ This will create the `.deb` package in the parent directory.
 This project uses GitHub Actions for automated building and releasing:
 
 - **Pull Requests**: Builds and tests the package
-- **Pushes to main/master**: Builds the package
-- **Tags (v*)**: Creates a GitHub release with the built `.deb` package
+- **Pushes to main/master**: Automatically creates a nightly release with the built `.deb` package
+- **Tags (v*)**: Creates an official release with the built `.deb` package
+- **Manual Trigger**: Use GitHub's "Run workflow" button for testing releases
+
+### Release Process
+
+#### Nightly Releases (Automatic)
+Every push to `main` or `master` branch automatically:
+1. Builds the `.deb` package
+2. Creates a nightly release (pre-release)
+3. Attaches the package files automatically
+
+#### Official Releases
+For official version releases, create a version tag:
+
+```bash
+# Option 1: Manual tag creation
+git tag v1.0.1
+git push origin v1.0.1
+
+# Option 2: Use the helper script
+./create-release.sh 1.0.1
+```
+
+This creates a stable release with generated release notes.
+
+#### Manual Testing
+1. Go to **Actions** tab in GitHub
+2. Click **"Release Debian Package"** workflow
+3. Click **"Run workflow"** button
+4. This creates a test release for validation
 
 ### Option 2: Manual Installation from Source
 
