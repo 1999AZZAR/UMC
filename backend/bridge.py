@@ -163,6 +163,63 @@ class BackendBridge(QObject):
         self.statusMessage.emit(f"Sending Screen On (Super+Shift+o) to {serial}...")
         self.requestScrcpyShortcut.emit(serial, "screen_on")
 
+    def _get_display_params(self, serial, mode):
+        width, height, density = 1280, 800, 160 # Tablet / Default
+        
+        if mode == "Desktop":
+            width, height, density = 1920, 1080, 160
+        elif mode == "Phone":
+             # This is a synchronous call to the worker object living in another thread.
+             w, h, d = self._worker.get_device_info(serial)
+             if w and h:
+                 width, height, density = w, h, d
+             else:
+                 # Fallback
+                 width, height, density = 1080, 2400, 420
+        
+        return width, height, density
+
+    @Slot(str)
+    def mirror_device(self, serial):
+        if not serial:
+            return
+        self.statusMessage.emit(f"Mirroring {serial}...")
+        
+        # Use current profile flags
+        profile_flags = get_profile_flags(self._current_profile)
+        
+        success = self._scrcpy.mirror(
+            serial,
+            forward_audio=self._audio_forwarding,
+            turn_screen_off=self._launch_with_screen_off,
+            extra_flags=profile_flags
+        )
+        
+        if not success:
+            self.statusMessage.emit("Failed to start mirror")
+
+    @Slot(str, str)
+    def open_display(self, serial, mode):
+        if not serial:
+            return
+        self.statusMessage.emit(f"Opening new {mode} display for {serial}...")
+        
+        width, height, density = self._get_display_params(serial, mode)
+        profile_flags = get_profile_flags(self._current_profile)
+        
+        success = self._scrcpy.create_display(
+            serial,
+            width=width,
+            height=height,
+            dpi=density,
+            forward_audio=self._audio_forwarding,
+            turn_screen_off=self._launch_with_screen_off,
+            extra_flags=profile_flags
+        )
+        
+        if not success:
+            self.statusMessage.emit(f"Failed to create {mode} display")
+
     @Slot(str)
     def launch_app(self, package_name):
         if not self._current_device_serial:
@@ -171,16 +228,7 @@ class BackendBridge(QObject):
             
         self.statusMessage.emit(f"Launching {package_name} with profile {self._current_profile}...")
         
-        width, height, density = 1280, 800, 160 # Tablet Defaults
-
-        if self._launch_mode == "Desktop":
-            width, height, density = 1920, 1080, 180
-        elif self._launch_mode == "Phone":
-             # This is a synchronous call to the worker object living in another thread.
-             # Python handles this, but it blocks the main thread slightly. 
-             # For now, it's acceptable for the "Launch" action.
-            w, h, d = self._worker.get_device_info(self._current_device_serial)
-            width, height, density = w, h, d
+        width, height, density = self._get_display_params(self._current_device_serial, self._launch_mode)
             
         profile_flags = get_profile_flags(self._current_profile)
         

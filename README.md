@@ -56,7 +56,10 @@ UMC uses a multi-threaded architecture for performance:
 
 ### Core Functionality
 - **Device Discovery**: Automatic detection of connected Android devices
-- **App Management**: Fast discovery of all launchable applications (System + User)
+- **App Launching**: Fast discovery of all launchable applications (System + User)
+- **Screen Management**:
+    - **Mirroring**: View and control the physical device screen
+    - **New Screen**: Open secondary virtual displays (Phone/Tablet/Desktop sized) without launching a specific app
 - **Virtual Displays**: Run Android apps in desktop windows
 - **Launch Modes**: Tablet, Phone, and Desktop modes for different use cases
 

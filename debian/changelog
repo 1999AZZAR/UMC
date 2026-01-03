@@ -1,3 +1,12 @@
+umc (1.0.4-3) unstable; urgency=medium
+
+  * Feature: Add context menu for device actions (Open/Mirror).
+  * Feature: Add "New Screen" functionality to open virtual displays (Phone/Tablet/Desktop) without launching an app.
+  * Feature: Add "Mirror" functionality to strictly mirror the physical device screen.
+  * UI: Add new vector icons for Desktop and Open/Mirror actions.
+
+ -- Unified Mobile Controller Team <umc@project.local>  Sat, 03 Jan 2026 11:30:00 +0000
+
 umc (1.0.4-2) unstable; urgency=medium
 
   * Feature: Remove experimental Session Management feature to streamline core experience.

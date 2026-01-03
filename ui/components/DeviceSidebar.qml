@@ -172,6 +172,129 @@ Rectangle {
                         spacing: 4
                         visible: ma.containsMouse || parent.parent.isSelected
                         
+                        // Open/Mirror Button
+                        Rectangle {
+                            width: 24
+                            height: 24
+                            radius: 4
+                            color: openBtnArea.containsMouse ? Style.background : "transparent"
+                            
+                            Icon {
+                                anchors.centerIn: parent
+                                name: "open_in_new"
+                                size: 14
+                                color: openBtnArea.pressed ? Style.accent : Style.textSecondary
+                            }
+                            
+                            MouseArea {
+                                id: openBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    openMenu.open()
+                                    mouse.accepted = true
+                                }
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: "Open Screen..."
+                                ToolTip.delay: 500
+                            }
+                            
+                            Menu {
+                                id: openMenu
+                                y: parent.height
+                                width: 180
+                                
+                                background: Rectangle {
+                                    implicitWidth: 180
+                                    implicitHeight: 40
+                                    color: Style.surface
+                                    border.color: Style.divider
+                                    radius: 4
+                                }
+                                
+                                MenuItem {
+                                    text: "Mirror (Default)"
+                                    font: Style.bodySmallFont
+                                    onTriggered: if(bridge) bridge.mirror_device(modelData.serial)
+                                    
+                                    contentItem: Text {
+                                        text: parent.text
+                                        font: parent.font
+                                        color: parent.highlighted ? Style.accent : Style.textPrimary
+                                        horizontalAlignment: Text.AlignLeft
+                                        verticalAlignment: Text.AlignVCenter
+                                        leftPadding: 12
+                                    }
+                                    background: Rectangle {
+                                        color: parent.highlighted ? Style.surfaceLight : "transparent"
+                                    }
+                                }
+                                
+                                MenuSeparator {
+                                    contentItem: Rectangle {
+                                        implicitWidth: parent.width
+                                        implicitHeight: 1
+                                        color: Style.divider
+                                    }
+                                }
+                                
+                                MenuItem {
+                                    text: "New Phone Screen"
+                                    font: Style.bodySmallFont
+                                    onTriggered: if(bridge) bridge.open_display(modelData.serial, "Phone")
+                                    
+                                    contentItem: Text {
+                                        text: parent.text
+                                        font: parent.font
+                                        color: parent.highlighted ? Style.accent : Style.textPrimary
+                                        horizontalAlignment: Text.AlignLeft
+                                        verticalAlignment: Text.AlignVCenter
+                                        leftPadding: 12
+                                    }
+                                    background: Rectangle {
+                                        color: parent.highlighted ? Style.surfaceLight : "transparent"
+                                    }
+                                }
+                                
+                                MenuItem {
+                                    text: "New Tablet Screen"
+                                    font: Style.bodySmallFont
+                                    onTriggered: if(bridge) bridge.open_display(modelData.serial, "Tablet")
+                                    
+                                    contentItem: Text {
+                                        text: parent.text
+                                        font: parent.font
+                                        color: parent.highlighted ? Style.accent : Style.textPrimary
+                                        horizontalAlignment: Text.AlignLeft
+                                        verticalAlignment: Text.AlignVCenter
+                                        leftPadding: 12
+                                    }
+                                    background: Rectangle {
+                                        color: parent.highlighted ? Style.surfaceLight : "transparent"
+                                    }
+                                }
+                                
+                                MenuItem {
+                                    text: "New Desktop Screen"
+                                    font: Style.bodySmallFont
+                                    onTriggered: if(bridge) bridge.open_display(modelData.serial, "Desktop")
+                                    
+                                    contentItem: Text {
+                                        text: parent.text
+                                        font: parent.font
+                                        color: parent.highlighted ? Style.accent : Style.textPrimary
+                                        horizontalAlignment: Text.AlignLeft
+                                        verticalAlignment: Text.AlignVCenter
+                                        leftPadding: 12
+                                    }
+                                    background: Rectangle {
+                                        color: parent.highlighted ? Style.surfaceLight : "transparent"
+                                    }
+                                }
+                            }
+                        }
+                        
                         // Screen Toggle
                         Rectangle {
                             width: 24

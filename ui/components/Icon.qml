@@ -154,6 +154,44 @@ Item {
                 ctx.lineTo(w - p, p);
                 ctx.stroke();
             }
+            else if (root.name === "desktop") {
+                // Monitor
+                var x = p, y = p+2, rw = w - 2*p, rh = h - 2*p - 4;
+                ctx.beginPath();
+                ctx.rect(x, y, rw, rh);
+                ctx.stroke();
+                // Stand
+                ctx.beginPath();
+                ctx.moveTo(cx, y + rh);
+                ctx.lineTo(cx, h - p);
+                ctx.moveTo(cx - 4, h - p);
+                ctx.lineTo(cx + 4, h - p);
+                ctx.stroke();
+            }
+            else if (root.name === "open_in_new") {
+                // Box
+                var x = p, y = p+3, rw = w - 2*p - 3, rh = h - 2*p - 3;
+                ctx.beginPath();
+                ctx.moveTo(x + rw, y);
+                ctx.lineTo(x, y);
+                ctx.lineTo(x, y + rh);
+                ctx.lineTo(x + rw, y + rh);
+                ctx.lineTo(x + rw, y + rh/2); // Gap for arrow
+                ctx.stroke();
+                
+                // Arrow
+                ctx.beginPath();
+                ctx.moveTo(cx + 2, cy - 2);
+                ctx.lineTo(w - p + 1, p - 1); // Diagonal
+                ctx.stroke();
+                // Arrow head
+                ctx.beginPath();
+                ctx.moveTo(w - p + 1, p - 1);
+                ctx.lineTo(w - p + 1 - 4, p - 1);
+                ctx.moveTo(w - p + 1, p - 1);
+                ctx.lineTo(w - p + 1, p - 1 + 4);
+                ctx.stroke();
+            }
         }
     }
     

@@ -63,6 +63,46 @@ class ScrcpyHandler:
             print(f"Failed to launch scrcpy: {e}")
             return False
 
+    def create_display(self, serial: str, width: int = 1280, height: int = 720, dpi: int = 0, turn_screen_off: bool = False, forward_audio: bool = False, extra_flags: list = None):
+        """
+        Creates a new virtual display without launching a specific app.
+        """
+        resolution = f"{width}x{height}"
+        if dpi > 0:
+            resolution = f"{resolution}/{dpi}"
+        
+        window_title = f"UMC - {serial} (Virtual)"
+
+        cmd = [
+            self.scrcpy_path,
+            "--serial", serial,
+            f"--new-display={resolution}",
+            "--window-title", window_title,
+            "--force-adb-forward",
+            "--no-cleanup"
+        ]
+        
+        if extra_flags:
+            cmd.extend(extra_flags)
+        
+        if not forward_audio:
+            cmd.append("--no-audio")
+
+        if turn_screen_off:
+            cmd.append("--turn-screen-off")
+        
+        print(f"Executing Create Display: {' '.join(cmd)}")
+        
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except FileNotFoundError:
+            print("Scrcpy not found")
+            return False
+        except Exception as e:
+            print(f"Failed to create display: {e}")
+            return False
+
     def mirror(self, serial: str, width: int = 1280, height: int = 720, dpi: int = 0, turn_screen_off: bool = False, forward_audio: bool = False, extra_flags: list = None, window_x: int = None, window_y: int = None, window_width: int = None, window_height: int = None):
         """
         Mirrors the device screen.
