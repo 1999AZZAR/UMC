@@ -1,11 +1,36 @@
 import subprocess
 import shutil
+import re
 from typing import List, Dict
 
 class ADBHandler:
     def __init__(self):
         self.adb_path = shutil.which("adb")
         self.mock_mode = self.adb_path is None
+
+    def connect(self, address: str) -> bool:
+        """Connects to a device via TCP/IP."""
+        if self.mock_mode:
+            print(f"Mock connecting to {address}")
+            return True
+            
+        try:
+            subprocess.run([self.adb_path, "connect", address], check=True, capture_output=True)
+            return True
+        except subprocess.CalledProcessError:
+            return False
+
+    def disconnect(self, address: str) -> bool:
+        """Disconnects a device."""
+        if self.mock_mode:
+            print(f"Mock disconnecting {address}")
+            return True
+            
+        try:
+            subprocess.run([self.adb_path, "disconnect", address], check=True, capture_output=True)
+            return True
+        except subprocess.CalledProcessError:
+            return False
 
     def get_devices(self) -> List[Dict[str, str]]:
         if self.mock_mode:
@@ -24,20 +49,22 @@ class ADBHandler:
             for line in result.stdout.strip().split('\n')[1:]:
                 if not line.strip():
                     continue
+                
                 parts = line.split()
-                if len(parts) >= 2:
-                    serial = parts[0]
-                    status = parts[1]
-                    model = "Unknown"
-                    for part in parts:
-                        if part.startswith("model:"):
-                            model = part.split(":")[1]
+                serial = parts[0]
+                status = parts[1]
+                model = "Unknown"
+                
+                # Robust model extraction
+                model_match = re.search(r'model:(\S+)', line)
+                if model_match:
+                    model = model_match.group(1).replace("_", " ")
                     
-                    devices.append({
-                        "serial": serial,
-                        "model": model,
-                        "status": status
-                    })
+                devices.append({
+                    "serial": serial,
+                    "model": model,
+                    "status": status
+                })
             return devices
         except subprocess.CalledProcessError as e:
             print(f"ADB Error: {e}")

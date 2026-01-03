@@ -1,6 +1,7 @@
 from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread
 from .worker import ADBWorker
 from .scrcpy_handler import ScrcpyHandler
+from .profiles import get_profile_names, get_profile_flags
 
 class BackendBridge(QObject):
     # Signals
@@ -10,6 +11,8 @@ class BackendBridge(QObject):
     launchModeChanged = Signal(str, arguments=['mode'])
     launchWithScreenOffChanged = Signal(bool, arguments=['enabled'])
     audioForwardingChanged = Signal(bool, arguments=['enabled'])
+    currentProfileChanged = Signal(str, arguments=['profile'])
+    profilesChanged = Signal(list, arguments=['profiles'])
     
     # Internal Signals to trigger worker
     requestDevices = Signal()
@@ -26,6 +29,8 @@ class BackendBridge(QObject):
         self._launch_mode = "Tablet" # Default
         self._launch_with_screen_off = False
         self._audio_forwarding = False
+        self._current_profile = "Default"
+        self._profiles = get_profile_names()
         
         # Setup Worker Thread
         self._thread = QThread()
@@ -85,11 +90,24 @@ class BackendBridge(QObject):
             self._audio_forwarding = enabled
             self.audioForwardingChanged.emit(enabled)
 
+    def get_current_profile(self):
+        return self._current_profile
+        
+    def set_current_profile(self, profile):
+        if self._current_profile != profile and profile in self._profiles:
+            self._current_profile = profile
+            self.currentProfileChanged.emit(profile)
+
+    def get_profiles(self):
+        return self._profiles
+
     devices = Property(list, fget=get_devices, notify=devicesChanged)
     packages = Property(list, fget=get_packages, notify=packagesChanged)
     launchMode = Property(str, fget=get_launch_mode, fset=set_launch_mode, notify=launchModeChanged)
     launchWithScreenOff = Property(bool, fget=get_launch_with_screen_off, fset=set_launch_with_screen_off, notify=launchWithScreenOffChanged)
     audioForwarding = Property(bool, fget=get_audio_forwarding, fset=set_audio_forwarding, notify=audioForwardingChanged)
+    currentProfile = Property(str, fget=get_current_profile, fset=set_current_profile, notify=currentProfileChanged)
+    profiles = Property(list, fget=get_profiles, notify=profilesChanged)
     currentDeviceSerial = Property(str, fget=get_current_device_serial, notify=statusMessage) # statusMessage is emitted when selected, good enough for now or I can add a dedicated signal.
 
     @Slot()
@@ -151,7 +169,7 @@ class BackendBridge(QObject):
             self.statusMessage.emit("No device selected")
             return
             
-        self.statusMessage.emit(f"Launching {package_name}...")
+        self.statusMessage.emit(f"Launching {package_name} with profile {self._current_profile}...")
         
         # Use worker helper to get info (could be made async too, but fast enough usually)
         # Note: We are accessing worker method directly here. 
@@ -162,12 +180,16 @@ class BackendBridge(QObject):
         
         width, height, density = 1280, 800, 160 # Tablet Defaults
 
-        if self._launch_mode == "Phone":
+        if self._launch_mode == "Desktop":
+            width, height, density = 1920, 1080, 180
+        elif self._launch_mode == "Phone":
              # This is a synchronous call to the worker object living in another thread.
              # Python handles this, but it blocks the main thread slightly. 
              # For now, it's acceptable for the "Launch" action.
             w, h, d = self._worker.get_device_info(self._current_device_serial)
             width, height, density = w, h, d
+            
+        profile_flags = get_profile_flags(self._current_profile)
         
         success = self._scrcpy.launch_app(
             self._current_device_serial, 
@@ -176,7 +198,8 @@ class BackendBridge(QObject):
             height=height,
             dpi=density,
             turn_screen_off=self._launch_with_screen_off,
-            forward_audio=self._audio_forwarding
+            forward_audio=self._audio_forwarding,
+            extra_flags=profile_flags
         )
         
         if success:

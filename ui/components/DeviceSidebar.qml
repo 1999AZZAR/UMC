@@ -263,7 +263,7 @@ Rectangle {
                 spacing: 0
                 
                 Repeater {
-                    model: ["Tablet", "Phone"]
+                    model: ["Tablet", "Phone", "Desktop"]
                     delegate: Rectangle {
                         Layout.fillWidth: true
                         height: 28
@@ -361,6 +361,92 @@ Rectangle {
                             width: 8; height: 8; radius: 1
                             color: "white"
                             visible: audioCheck.checked
+                        }
+                    }
+                }
+                
+                Item { height: 8; width: 1 } // Spacer
+                
+                Text {
+                    text: "PERFORMANCE PROFILE"
+                    font.family: Style.bodySmallFont.family
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    color: Style.textSecondary
+                }
+
+                ComboBox {
+                    id: profileCombo
+                    Layout.fillWidth: true
+                    height: 28
+                    model: bridge ? bridge.profiles : []
+                    
+                    onActivated: (index) => {
+                        if (bridge) bridge.currentProfile = textAt(index)
+                    }
+                    
+                    Component.onCompleted: {
+                        if (bridge) currentIndex = find(bridge.currentProfile)
+                    }
+                    
+                    Connections {
+                        target: bridge
+                        function onCurrentProfileChanged(profile) {
+                            if (profileCombo.find) {
+                                var idx = profileCombo.find(profile)
+                                if (idx !== -1) profileCombo.currentIndex = idx
+                            }
+                        }
+                    }
+
+                    delegate: ItemDelegate {
+                        width: parent.width
+                        contentItem: Text {
+                            text: modelData
+                            color: highlighted ? "white" : Style.textPrimary
+                            font: Style.bodySmallFont
+                            elide: Text.ElideRight
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: highlighted ? Style.accent : "transparent"
+                        }
+                    }
+
+                    contentItem: Text {
+                        leftPadding: 8
+                        rightPadding: profileCombo.indicator.width + 8
+                        text: profileCombo.displayText
+                        font: Style.bodySmallFont
+                        color: Style.textPrimary
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+
+                    background: Rectangle {
+                        color: Style.surfaceLight
+                        radius: 2
+                        border.color: "transparent"
+                    }
+                    
+                    popup: Popup {
+                        y: profileCombo.height - 1
+                        width: profileCombo.width
+                        implicitHeight: contentItem.implicitHeight
+                        padding: 1
+
+                        contentItem: ListView {
+                            clip: true
+                            implicitHeight: contentHeight
+                            model: profileCombo.delegateModel
+                            currentIndex: profileCombo.highlightedIndex
+                            ScrollIndicator.vertical: ScrollIndicator { }
+                        }
+
+                        background: Rectangle {
+                            color: Style.surface
+                            border.color: Style.divider
+                            radius: 2
                         }
                     }
                 }

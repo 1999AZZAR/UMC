@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![PySide6](https://img.shields.io/badge/PySide6-6.5+-green.svg)](https://pypi.org/project/PySide6/)
 
-A modern desktop application for managing Android devices and launching applications in isolated virtual displays using `scrcpy` and `adb`.
+A desktop application for managing Android devices and launching applications in isolated virtual displays using `scrcpy` and `adb`.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ A modern desktop application for managing Android devices and launching applicat
 
 ## Overview
 
-UMC is a cross-platform desktop application that provides a modern graphical interface for managing Android devices. It enables users to:
+UMC is a cross-platform desktop application providing a graphical interface for managing Android devices. It enables users to:
 
 - **Device Management**: Connect and manage Android devices via USB or network
 - **App Launching**: Browse and launch Android applications in isolated virtual displays
@@ -31,19 +31,20 @@ UMC is a cross-platform desktop application that provides a modern graphical int
 
 ### Tech Stack
 
-- **Frontend**: QML (Qt Quick) for modern, responsive UI
+- **Frontend**: QML (Qt Quick) for the user interface
 - **Backend**: Python with PySide6 for cross-platform compatibility
 - **Tools**: `adb` for device communication, `scrcpy` for virtual displays
 
 ## Architecture
 
-UMC uses a robust multi-threaded architecture for optimal performance:
+UMC uses a multi-threaded architecture for performance:
 
 ### Core Components
 
 - **Main UI Thread**: QML-based interface handling user interactions
 - **Worker Thread**: Background processing for device communication and app management
 - **Virtual Displays**: Independent scrcpy subprocesses for each launched application
+- **Unified Device API**: Internal abstraction layer (`Device` class) orchestrating ADB and scrcpy operations
 
 ### Key Features
 
@@ -58,13 +59,22 @@ UMC uses a robust multi-threaded architecture for optimal performance:
 - **Device Discovery**: Automatic detection of connected Android devices
 - **App Management**: Browse, search, and launch installed applications
 - **Virtual Displays**: Run Android apps in desktop windows
-- **Launch Modes**: Tablet and Phone modes for different use cases
+- **Launch Modes**: Tablet, Phone, and Desktop modes for different use cases
+
+### Performance Profiles
+Configurable profiles to optimize the streaming experience based on needs:
+
+- **Default**: Balanced settings (8Mbps bitrate)
+- **Low Latency**: Optimized for speed (4Mbps, 60fps, no buffer, h264)
+- **High Quality**: Prioritizes visual fidelity (16Mbps, 60fps, 50ms buffer, h265)
+- **Battery Saver**: Reduces resource usage (2Mbps, 30fps)
+- **Streaming Mode**: High bitrate with buffering for smooth playback (12Mbps, 100ms buffer)
 
 ### Advanced Features
 - **Multi-threading**: Responsive UI with background device communication
 - **Network Support**: Wireless ADB connections
-- **Modern UI**: Clean, intuitive QML-based interface
-- **Performance**: Optimized for smooth virtual display rendering
+- **Device Orchestration**: Unified API for managing device states
+- **Shortcuts**: Dedicated UI controls for toggling device screen and scrcpy display
 
 ### Developer Tools
 - **Debug Mode**: Verbose logging for troubleshooting
@@ -105,7 +115,7 @@ pip install PySide6
 
 - **RAM**: 4GB minimum, 8GB recommended
 - **Storage**: 500MB free space
-- **Android Device**: USB debugging enabled (Settings → Developer Options)
+- **Android Device**: USB debugging enabled (Settings -> Developer Options)
 
 ## Installation
 
@@ -180,20 +190,18 @@ sudo dpkg -i ../umc_*.deb
 ### Interface Overview
 
 #### Main Components
-- **Device Sidebar**: Lists connected Android devices
+- **Device Sidebar**: Lists connected Android devices, Launch Mode, and Performance Profile settings
 - **App Grid**: Shows installed applications on selected device
 - **Search Bar**: Filter applications by name
-- **Settings Panel**: Launch mode and display options
+- **Settings Panel**: Configure launch behavior (Screen Off, Audio Forwarding)
 
 #### Launch Modes
 
 | Mode | Resolution | Density | Best For |
 |------|------------|---------|----------|
-| **Tablet** (Default) | 1280×800 | 160 DPI | Desktop-like experience |
-| **Phone** | Device native | Device native | Mobile app compatibility |
-
-**Tablet Mode**: Optimized for desktop usage with larger touch targets
-**Phone Mode**: Mirrors exact device specifications for accurate testing
+| **Tablet** (Default) | 1280x800 | 160 DPI | Standard desktop usage |
+| **Phone** | Device Native | Device Native | Mobile app testing |
+| **Desktop** | 1920x1080 | 180 DPI | Full HD desktop experience |
 
 ## Technical Details
 
@@ -211,7 +219,7 @@ sudo dpkg -i ../umc_*.deb
 3. Apply corresponding density from `adb shell wm density`
 4. Ensure pixel-perfect virtual display rendering
 
-**Tablet Mode:** Fixed 1280×800 resolution optimized for desktop interaction
+**Tablet/Desktop Mode:** Fixed resolutions optimized for specific desktop interaction paradigms.
 
 ## Troubleshooting
 
@@ -220,7 +228,7 @@ sudo dpkg -i ../umc_*.deb
 #### Device Connection Problems
 
 **"No devices detected"**
-- Enable USB debugging: Settings → Developer Options → USB Debugging
+- Enable USB debugging: Settings -> Developer Options -> USB Debugging
 - Authorize computer on device popup
 - Try different USB cable/port
 - Check device drivers (Windows)
@@ -243,7 +251,7 @@ sudo apt install scrcpy  # Ubuntu/Debian
 ```
 
 **App closes immediately**
-- Try switching launch modes (Tablet ↔ Phone)
+- Try switching launch modes
 - Some apps don't support certain resolutions
 - Check device compatibility
 
@@ -262,8 +270,8 @@ sudo usermod -a -G plugdev $USER
 ```
 
 **Slow performance**
+- Select "Low Latency" profile
 - Close other applications
-- Reduce virtual display resolution
 - Use wired connection instead of wireless
 
 ### Getting Help
