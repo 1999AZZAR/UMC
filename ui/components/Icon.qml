@@ -122,6 +122,38 @@ Item {
                 ctx.lineTo(w - p, cy + 4);
                 ctx.stroke();
             }
+            else if (root.name === "save") {
+                var x = p, y = p, rw = w - 2*p, rh = h - 2*p;
+                ctx.beginPath();
+                ctx.rect(x, y, rw, rh);
+                ctx.stroke();
+                ctx.fillStyle = root.color;
+                ctx.fillRect(x + 2, y, rw - 4, 4);
+                ctx.fillRect(x + 4, y + rh - 6, rw - 8, 6);
+            }
+            else if (root.name === "play") {
+                ctx.beginPath();
+                ctx.moveTo(p, p);
+                ctx.lineTo(p, h - p);
+                ctx.lineTo(w - p, h / 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+            else if (root.name === "delete") {
+                ctx.beginPath();
+                ctx.moveTo(p, p);
+                ctx.lineTo(w - p, h - p);
+                ctx.moveTo(w - p, p);
+                ctx.lineTo(p, h - p);
+                ctx.stroke();
+            }
+            else if (root.name === "check") {
+                ctx.beginPath();
+                ctx.moveTo(p, cy);
+                ctx.lineTo(cx, h - p);
+                ctx.lineTo(w - p, p);
+                ctx.stroke();
+            }
         }
     }
     

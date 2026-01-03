@@ -2,6 +2,7 @@ from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread
 from .worker import ADBWorker
 from .scrcpy_handler import ScrcpyHandler
 from .profiles import get_profile_names, get_profile_flags
+from .session_manager import SessionManager
 
 class BackendBridge(QObject):
     # Signals
@@ -13,6 +14,7 @@ class BackendBridge(QObject):
     audioForwardingChanged = Signal(bool, arguments=['enabled'])
     currentProfileChanged = Signal(str, arguments=['profile'])
     profilesChanged = Signal(list, arguments=['profiles'])
+    sessionsChanged = Signal(list, arguments=['sessions'])
     
     # Internal Signals to trigger worker
     requestDevices = Signal()
@@ -23,6 +25,8 @@ class BackendBridge(QObject):
     def __init__(self):
         super().__init__()
         self._scrcpy = ScrcpyHandler()
+        self._session_manager = SessionManager()
+        self._last_launch_args = None
         self._current_device_serial = ""
         self._devices = []
         self._packages = []
@@ -100,6 +104,9 @@ class BackendBridge(QObject):
 
     def get_profiles(self):
         return self._profiles
+    
+    def get_sessions(self):
+        return self._session_manager.get_sessions()
 
     devices = Property(list, fget=get_devices, notify=devicesChanged)
     packages = Property(list, fget=get_packages, notify=packagesChanged)
@@ -108,6 +115,7 @@ class BackendBridge(QObject):
     audioForwarding = Property(bool, fget=get_audio_forwarding, fset=set_audio_forwarding, notify=audioForwardingChanged)
     currentProfile = Property(str, fget=get_current_profile, fset=set_current_profile, notify=currentProfileChanged)
     profiles = Property(list, fget=get_profiles, notify=profilesChanged)
+    sessions = Property(list, fget=get_sessions, notify=sessionsChanged)
     currentDeviceSerial = Property(str, fget=get_current_device_serial, notify=statusMessage) # statusMessage is emitted when selected, good enough for now or I can add a dedicated signal.
 
     @Slot()
@@ -171,12 +179,16 @@ class BackendBridge(QObject):
             
         self.statusMessage.emit(f"Launching {package_name} with profile {self._current_profile}...")
         
-        # Use worker helper to get info (could be made async too, but fast enough usually)
-        # Note: We are accessing worker method directly here. 
-        # In strict thread safety, we should emit a signal or use QMetaObject.invokeMethod,
-        # but since get_device_info is purely read-only/subprocess, it's generally safe 
-        # provided it doesn't modify worker state.
-        # Ideally: Refactor this to be fully async too.
+        # Save args for session saving
+        self._last_launch_args = {
+            "type": "app",
+            "serial": self._current_device_serial,
+            "package": package_name,
+            "launch_mode": self._launch_mode,
+            "profile": self._current_profile,
+            "screen_off": self._launch_with_screen_off,
+            "audio": self._audio_forwarding
+        }
         
         width, height, density = 1280, 800, 160 # Tablet Defaults
 
@@ -206,6 +218,95 @@ class BackendBridge(QObject):
             self.statusMessage.emit(f"Launched {package_name}")
         else:
             self.statusMessage.emit("Failed to launch scrcpy")
+
+    @Slot(str)
+    def save_current_session(self, name):
+        if not self._last_launch_args:
+            self.statusMessage.emit("No active session to save")
+            return
+            
+        args = self._last_launch_args
+        self._session_manager.create_session(
+            name=name,
+            serial=args["serial"],
+            type=args["type"],
+            package=args["package"],
+            launch_mode=args["launch_mode"],
+            profile=args["profile"],
+            screen_off=args["screen_off"],
+            audio=args["audio"]
+        )
+        self.sessionsChanged.emit(self.get_sessions())
+        self.statusMessage.emit(f"Session '{name}' saved")
+
+    @Slot(str)
+    def restore_session(self, session_id):
+        session = self._session_manager.get_session(session_id)
+        if not session:
+            self.statusMessage.emit("Session not found")
+            return
+            
+        self.statusMessage.emit(f"Restoring session '{session['name']}'...")
+        
+        serial = session["serial"]
+        
+        # Check if device is available
+        device_found = False
+        for d in self._devices:
+            if d["serial"] == serial:
+                device_found = True
+                break
+        
+        if not device_found:
+             self.statusMessage.emit(f"Device {serial} not found. Cannot restore session.")
+             return
+
+        self.set_launch_mode(session["launch_mode"])
+        self.set_current_profile(session["profile"])
+        self.set_launch_with_screen_off(session["screen_off"])
+        self.set_audio_forwarding(session["audio"])
+        
+        width, height, density = 1280, 800, 160
+        if session["launch_mode"] == "Desktop":
+            width, height, density = 1920, 1080, 180
+        elif session["launch_mode"] == "Phone":
+             w, h, d = self._worker.get_device_info(serial)
+             width, height, density = w, h, d
+        
+        profile_flags = get_profile_flags(session["profile"])
+        
+        geo = session.get("geometry")
+        wx, wy, ww, wh = None, None, None, None
+        if geo:
+            wx, wy, ww, wh = geo.get("x"), geo.get("y"), geo.get("width"), geo.get("height")
+
+        if session["type"] == "app":
+            self._scrcpy.launch_app(
+                serial, session["package"],
+                width=width, height=height, dpi=density,
+                turn_screen_off=session["screen_off"],
+                forward_audio=session["audio"],
+                extra_flags=profile_flags,
+                window_x=wx, window_y=wy, window_width=ww, window_height=wh
+            )
+        elif session["type"] == "mirror":
+             self._scrcpy.mirror(
+                serial,
+                width=width, height=height, dpi=density,
+                turn_screen_off=session["screen_off"],
+                forward_audio=session["audio"],
+                extra_flags=profile_flags,
+                window_x=wx, window_y=wy, window_width=ww, window_height=wh
+             )
+             
+        self.statusMessage.emit(f"Session '{session['name']}' restored")
+        self._last_launch_args = session
+
+    @Slot(str)
+    def delete_session(self, session_id):
+        self._session_manager.delete_session(session_id)
+        self.sessionsChanged.emit(self.get_sessions())
+        self.statusMessage.emit("Session deleted")
 
     def cleanup(self):
         """Stops the worker thread gracefully."""

@@ -5,7 +5,7 @@ class ScrcpyHandler:
     def __init__(self):
         self.scrcpy_path = shutil.which("scrcpy") or "scrcpy"
 
-    def launch_app(self, serial: str, package_name: str, width: int = 1280, height: int = 720, dpi: int = 0, turn_screen_off: bool = False, forward_audio: bool = False, extra_flags: list = None):
+    def launch_app(self, serial: str, package_name: str, width: int = 1280, height: int = 720, dpi: int = 0, turn_screen_off: bool = False, forward_audio: bool = False, extra_flags: list = None, window_x: int = None, window_y: int = None, window_width: int = None, window_height: int = None):
         """
         Launches an app in a new virtual display using scrcpy.
         """
@@ -29,6 +29,15 @@ class ScrcpyHandler:
             "--force-adb-forward",
             "--no-cleanup"                   # Keep display alive if needed (optional)
         ]
+        
+        if window_x is not None:
+            cmd.append(f"--window-x={window_x}")
+        if window_y is not None:
+            cmd.append(f"--window-y={window_y}")
+        if window_width is not None:
+            cmd.append(f"--window-width={window_width}")
+        if window_height is not None:
+            cmd.append(f"--window-height={window_height}")
         
         if extra_flags:
             cmd.extend(extra_flags)
@@ -54,7 +63,7 @@ class ScrcpyHandler:
             print(f"Failed to launch scrcpy: {e}")
             return False
 
-    def mirror(self, serial: str, width: int = 1280, height: int = 720, dpi: int = 0, turn_screen_off: bool = False, forward_audio: bool = False, extra_flags: list = None):
+    def mirror(self, serial: str, width: int = 1280, height: int = 720, dpi: int = 0, turn_screen_off: bool = False, forward_audio: bool = False, extra_flags: list = None, window_x: int = None, window_y: int = None, window_width: int = None, window_height: int = None):
         """
         Mirrors the device screen.
         """
@@ -70,6 +79,15 @@ class ScrcpyHandler:
             f"--max-size={max(width, height)}", # Approximate scaling
             "--window-title", window_title
         ]
+        
+        if window_x is not None:
+            cmd.append(f"--window-x={window_x}")
+        if window_y is not None:
+            cmd.append(f"--window-y={window_y}")
+        if window_width is not None:
+            cmd.append(f"--window-width={window_width}")
+        if window_height is not None:
+            cmd.append(f"--window-height={window_height}")
         
         if extra_flags:
             cmd.extend(extra_flags)

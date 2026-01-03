@@ -27,101 +27,57 @@ class ADBWorker(QObject):
 
     @Slot(str)
     def fetch_packages(self, serial: str):
-        """Fetches installed 3rd party packages with their display names for a specific device."""
+        """Fetches all launchable packages (users apps + system apps with launcher activity)."""
         if self.mock_mode or serial.startswith("MOCK"):
             self.packagesReady.emit(serial, [
                 {"package": "com.android.chrome", "name": "Chrome"},
                 {"package": "com.google.android.youtube", "name": "YouTube"},
                 {"package": "com.whatsapp", "name": "WhatsApp"},
-                {"package": "com.instagram.android", "name": "Instagram"}
+                {"package": "com.instagram.android", "name": "Instagram"},
+                {"package": "com.android.settings", "name": "Settings"}
             ])
             return
 
         try:
-            # First, get just package names quickly (fallback)
-            cmd = [self.adb_path, "-s", serial, "shell", "pm", "list", "packages", "-3"]
+            # Use cmd package query-activities to get all launchable apps
+            # This is faster and more accurate than pm list packages
+            cmd = [
+                self.adb_path, "-s", serial, "shell", 
+                "cmd", "package", "query-activities", "--brief", 
+                "-a", "android.intent.action.MAIN", 
+                "-c", "android.intent.category.LAUNCHER"
+            ]
+            
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            packages = []
+            apps = []
+            
+            seen_packages = set()
+            
             for line in result.stdout.strip().split('\n'):
-                if line.startswith("package:"):
-                    package_name = line.replace("package:", "").strip()
-                    packages.append(package_name)
+                line = line.strip()
+                if not line or line.startswith("Activity"):
+                    continue
+                
+                # Format is usually: package/activity or package/.Activity
+                # e.g., com.android.settings/com.android.settings.Settings
+                
+                if "/" in line:
+                    parts = line.split("/")
+                    package_name = parts[0]
+                    # activity_name = parts[1] # Not used for now, scrcpy just needs package usually
+                    
+                    if package_name not in seen_packages:
+                        # Create a friendly name
+                        friendly_name = package_name
+                        if "." in package_name:
+                            # Use the last part of the package name as a heuristic for the name
+                            friendly_name = package_name.split(".")[-1].capitalize()
+                        
+                        apps.append({"package": package_name, "name": friendly_name})
+                        seen_packages.add(package_name)
 
-            # Emit packages with package names as fallback immediately
-            apps = [{"package": pkg, "name": pkg} for pkg in packages]
+            apps.sort(key=lambda x: x["name"].lower())
             self.packagesReady.emit(serial, apps)
-
-            # Now try to get app names asynchronously
-            try:
-                # Get package names with APK paths
-                cmd_paths = [self.adb_path, "-s", serial, "shell", "pm", "list", "packages", "-3", "-f"]
-                result_paths = subprocess.run(cmd_paths, capture_output=True, text=True, check=True)
-                package_data = []
-                for line in result_paths.stdout.strip().split('\n'):
-                    if line.startswith("package:"):
-                        # Format: package:/path/to/apk=package.name
-                        # Split on the last '=' since paths can contain '='
-                        content = line.replace("package:", "")
-                        last_eq = content.rfind('=')
-                        if last_eq != -1:
-                            apk_path = content[:last_eq]
-                            package_name = content[last_eq + 1:]
-                            package_data.append({"package": package_name, "apk_path": apk_path})
-
-                # Update apps with real names where possible
-                updated_apps = []
-                for item in package_data[:50]:  # Limit to first 50 to avoid timeouts
-                    try:
-                        # Pull APK and get label
-                        import tempfile
-                        import os
-
-                        with tempfile.NamedTemporaryFile(suffix='.apk', delete=False) as temp_file:
-                            temp_apk = temp_file.name
-
-                        try:
-                            # Pull APK from device
-                            pull_cmd = [self.adb_path, "-s", serial, "pull", item["apk_path"], temp_apk]
-                            subprocess.run(pull_cmd, capture_output=True, timeout=10, check=True)
-
-                            # Use aapt to get app label
-                            aapt_cmd = ["aapt", "dump", "badging", temp_apk]
-                            aapt_result = subprocess.run(aapt_cmd, capture_output=True, text=True, timeout=5)
-
-                            app_name = item["package"]  # fallback
-                            # Look for "application-label:" in aapt output
-                            for line in aapt_result.stdout.split('\n'):
-                                if line.strip().startswith("application-label:"):
-                                    # Extract label value, remove quotes if present
-                                    label_part = line.split(':', 1)[1].strip()
-                                    if label_part.startswith("'") and label_part.endswith("'"):
-                                        app_name = label_part[1:-1]
-                                    elif label_part.startswith('"') and label_part.endswith('"'):
-                                        app_name = label_part[1:-1]
-                                    else:
-                                        app_name = label_part
-                                    break
-
-                            updated_apps.append({"package": item["package"], "name": app_name})
-
-                        finally:
-                            # Clean up temp APK
-                            try:
-                                os.unlink(temp_apk)
-                            except:
-                                pass
-
-                    except Exception:
-                        # Keep original package name
-                        updated_apps.append({"package": item["package"], "name": item["package"]})
-
-                # Emit updated list
-                updated_apps.sort(key=lambda x: x["name"].lower())
-                self.packagesReady.emit(serial, updated_apps)
-
-            except Exception:
-                # If anything fails, keep the original package names
-                pass
 
         except Exception as e:
             self.errorOccurred.emit(f"Failed to fetch packages: {str(e)}")

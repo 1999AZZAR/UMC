@@ -22,18 +22,18 @@ A desktop application for managing Android devices and launching applications in
 
 ## Overview
 
-UMC is a cross-platform desktop application providing a graphical interface for managing Android devices. It enables users to:
+UMC is a cross-platform desktop application providing a graphical interface for managing Android devices. It transforms your desktop into a persistent mobile workspace.
 
 - **Device Management**: Connect and manage Android devices via USB or network
 - **App Launching**: Browse and launch Android applications in isolated virtual displays
-- **Virtual Displays**: Run Android apps in native desktop windows using scrcpy
+- **Session Management**: Save and restore workspace layouts, including window positions
 - **Device Monitoring**: Real-time device status and application management
 
 ### Tech Stack
 
 - **Frontend**: QML (Qt Quick) for the user interface
 - **Backend**: Python with PySide6 for cross-platform compatibility
-- **Tools**: `adb` for device communication, `scrcpy` for virtual displays
+- **Tools**: `adb` for device communication, `scrcpy` for virtual displays, `xdotool` for window management
 
 ## Architecture
 
@@ -45,6 +45,7 @@ UMC uses a multi-threaded architecture for performance:
 - **Worker Thread**: Background processing for device communication and app management
 - **Virtual Displays**: Independent scrcpy subprocesses for each launched application
 - **Unified Device API**: Internal abstraction layer (`Device` class) orchestrating ADB and scrcpy operations
+- **Session Manager**: Handles persistence of device sessions and window geometry
 
 ### Key Features
 
@@ -57,9 +58,15 @@ UMC uses a multi-threaded architecture for performance:
 
 ### Core Functionality
 - **Device Discovery**: Automatic detection of connected Android devices
-- **App Management**: Browse, search, and launch installed applications
+- **App Management**: Fast discovery of all launchable applications (System + User)
 - **Virtual Displays**: Run Android apps in desktop windows
 - **Launch Modes**: Tablet, Phone, and Desktop modes for different use cases
+
+### Session Management
+Persist your workflow with named sessions:
+- **Save State**: Captures active device, app, launch profile, and window position
+- **Restore**: One-click restoration of your workspace
+- **Manage**: Create, delete, and organize sessions
 
 ### Performance Profiles
 Configurable profiles to optimize the streaming experience based on needs:
@@ -92,6 +99,7 @@ Configurable profiles to optimize the streaming experience based on needs:
 | **Display** | X11 or Wayland | Linux display server |
 | **ADB** | Android Debug Bridge | Device communication |
 | **Scrcpy** | v2.0+ (v3.0+ recommended) | Virtual display rendering |
+| **xdotool** | Any version | Required for window geometry capture (Linux) |
 
 ### Required Tools
 
@@ -104,6 +112,9 @@ sudo apt install android-tools-adb  # Ubuntu/Debian
 # Install Scrcpy (Screen Copy)
 sudo apt install scrcpy  # Ubuntu/Debian
 # OR build from source: https://github.com/Genymobile/scrcpy
+
+# Install xdotool (For session geometry support)
+sudo apt install xdotool
 ```
 
 #### Python Dependencies
@@ -190,8 +201,8 @@ sudo dpkg -i ../umc_*.deb
 ### Interface Overview
 
 #### Main Components
-- **Device Sidebar**: Lists connected Android devices, Launch Mode, and Performance Profile settings
-- **App Grid**: Shows installed applications on selected device
+- **Device Sidebar**: Lists connected Android devices, Launch Mode, Performance Profile, and Saved Sessions
+- **App Grid**: Shows all launchable applications (System & User)
 - **Search Bar**: Filter applications by name
 - **Settings Panel**: Configure launch behavior (Screen Off, Audio Forwarding)
 
