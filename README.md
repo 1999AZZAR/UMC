@@ -169,6 +169,18 @@ sudo dpkg -i ../umc_*.deb
 - **Older distributions**: Install via pip: `pip install PySide6`
 - **Windows/macOS**: PySide6 included in requirements.txt
 
+## Uninstallation
+
+To remove UMC from your system:
+
+```bash
+# Remove package
+sudo apt remove umc
+
+# (Optional) Remove unused dependencies
+sudo apt autoremove
+```
+
 ## Usage
 
 ### Getting Started
