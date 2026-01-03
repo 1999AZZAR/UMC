@@ -1,12 +1,20 @@
+umc (1.0.4-2) unstable; urgency=medium
+
+  * Feature: Remove experimental Session Management feature to streamline core experience.
+  * Dependency: Remove xdotool dependency.
+  * Dependency: Move scrcpy to Recommends to support Snap/Source installations.
+  * Fix: Resolve QML property assignment conflicts in DeviceSidebar.
+  * Documentation: Add Uninstallation guide to README.
+
+ -- Unified Mobile Controller Team <umc@project.local>  Sat, 03 Jan 2026 10:00:00 +0000
+
 umc (1.0.4-1) unstable; urgency=medium
 
   * Feature: Implement Unified Device API orchestration layer.
   * Feature: Add Desktop launch mode (1920x1080 @ 180dpi).
   * Feature: Add configurable Performance Profiles (Low Latency, High Quality, etc.).
-  * Feature: Add Session Management (Save/Restore persistent workspaces).
   * Feature: Improve app discovery to list all launchable apps (System + User).
   * Architecture: Refactor backend for improved modularity and consistency.
-  * Dependency: Add xdotool requirement for session window management.
 
  -- Unified Mobile Controller Team <umc@project.local>  Sat, 03 Jan 2026 09:10:00 +0000
 
