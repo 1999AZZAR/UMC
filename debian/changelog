@@ -1,3 +1,13 @@
+umc (1.0.4-4) unstable; urgency=medium
+
+  * Feature: Add app icon display - fetches and displays actual app icons from Android devices.
+  * Feature: Implement fuzzy search algorithm for improved app discovery.
+  * Performance: Optimize app list loading - removed blocking operations for faster startup.
+  * Performance: Implement lazy icon loading - icons fetch in background without blocking UI.
+  * Fix: Resolve QML binding loop warnings in main UI.
+
+ -- Unified Mobile Controller Team <umc@project.local>  Sat, 03 Jan 2026 12:00:00 +0000
+
 umc (1.0.4-3) unstable; urgency=medium
 
   * Feature: Add context menu for device actions (Open/Mirror).
