@@ -14,6 +14,9 @@ class ADBWorker(QObject):
     packagesReady = Signal(str, list)
     iconReady = Signal(str, str)  # package_name, icon_path
     deviceStatusReady = Signal(str, dict)  # serial, status_info
+    fileTransferProgress = Signal(str, str, int, arguments=['serial', 'operation', 'progress'])  # serial, operation (push/pull), progress 0-100
+    fileTransferComplete = Signal(str, str, bool, arguments=['serial', 'operation', 'success'])  # serial, operation, success
+    clipboardChanged = Signal(str, str, arguments=['serial', 'text'])  # serial, clipboard_text
     errorOccurred = Signal(str)
     
     def __init__(self):
@@ -31,8 +34,11 @@ class ADBWorker(QObject):
     @Slot()
     def fetch_devices(self):
         """Fetches the list of connected devices."""
-        devices = self.adb_handler.get_devices()
-        self.devicesReady.emit(devices)
+        try:
+            devices = self.adb_handler.get_devices()
+            self.devicesReady.emit(devices)
+        except Exception:
+            self.devicesReady.emit([])
     
     @Slot(str)
     def fetch_device_status(self, serial: str):
@@ -50,18 +56,18 @@ class ADBWorker(QObject):
     @Slot(str)
     def fetch_packages(self, serial: str):
         """Fetches all launchable packages (users apps + system apps with launcher activity)."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            mock_apps = [
-                {"package": "com.android.chrome", "name": "Chrome", "icon": None},
-                {"package": "com.google.android.youtube", "name": "YouTube", "icon": None},
-                {"package": "com.whatsapp", "name": "WhatsApp", "icon": None},
-                {"package": "com.instagram.android", "name": "Instagram", "icon": None},
-                {"package": "com.android.settings", "name": "Settings", "icon": None}
-            ]
-            self.packagesReady.emit(serial, mock_apps)
-            return
-
         try:
+            if self.mock_mode or serial.startswith("MOCK"):
+                mock_apps = [
+                    {"package": "com.android.chrome", "name": "Chrome", "icon": None},
+                    {"package": "com.google.android.youtube", "name": "YouTube", "icon": None},
+                    {"package": "com.whatsapp", "name": "WhatsApp", "icon": None},
+                    {"package": "com.instagram.android", "name": "Instagram", "icon": None},
+                    {"package": "com.android.settings", "name": "Settings", "icon": None}
+                ]
+                self.packagesReady.emit(serial, mock_apps)
+                return
+
             # Use cmd package query-activities to get all launchable apps
             # This is faster and more accurate than pm list packages
             cmd = [
@@ -198,6 +204,60 @@ class ADBWorker(QObject):
         except (subprocess.TimeoutExpired, KeyboardInterrupt, Exception) as e:
             # Silently fail - icon fetching is optional and shouldn't block app list
             pass
+    
+    @Slot(str, str, str)
+    def push_file(self, serial: str, local_path: str, remote_path: str):
+        """Push file to device."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            self.fileTransferProgress.emit(serial, "push", 0)
+            success = self.adb_handler.push_file(serial, local_path, remote_path)
+            self.fileTransferProgress.emit(serial, "push", 100)
+            self.fileTransferComplete.emit(serial, "push", success)
+        except Exception as e:
+            self.fileTransferComplete.emit(serial, "push", False)
+            self.errorOccurred.emit(f"File transfer failed: {str(e)}")
+    
+    @Slot(str, str, str)
+    def pull_file(self, serial: str, remote_path: str, local_path: str):
+        """Pull file from device."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            self.fileTransferProgress.emit(serial, "pull", 0)
+            success = self.adb_handler.pull_file(serial, remote_path, local_path)
+            self.fileTransferProgress.emit(serial, "pull", 100)
+            self.fileTransferComplete.emit(serial, "pull", success)
+        except Exception as e:
+            self.fileTransferComplete.emit(serial, "pull", False)
+            self.errorOccurred.emit(f"File transfer failed: {str(e)}")
+    
+    @Slot(str, str)
+    def get_clipboard(self, serial: str):
+        """Get clipboard from device."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            text = self.adb_handler.get_clipboard(serial)
+            if text:
+                self.clipboardChanged.emit(serial, text)
+        except Exception as e:
+            pass  # Silently fail
+    
+    @Slot(str, str)
+    def set_clipboard(self, serial: str, text: str):
+        """Set clipboard on device."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            self.adb_handler.set_clipboard(serial, text)
+        except Exception as e:
+            pass  # Silently fail
     
     def stop(self):
         """Stop all operations immediately."""

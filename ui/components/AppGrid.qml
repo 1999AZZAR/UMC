@@ -300,10 +300,21 @@ Item {
                             font: Style.bodySmallFont
                             onTriggered: bridge.launch_app(modelData.package || modelData)
                             
-                            contentItem: Text {
-                                text: parent.text
-                                font: parent.font
-                                color: parent.highlighted ? Style.accent : Style.textPrimary
+                            contentItem: Row {
+                                spacing: 8
+                                leftPadding: 8
+                                
+                                Icon {
+                                    name: "play_arrow"
+                                    size: 14
+                                    color: parent.parent.highlighted ? Style.accent : Style.textSecondary
+                                }
+                                
+                                Text {
+                                    text: parent.parent.text
+                                    font: parent.parent.font
+                                    color: parent.parent.highlighted ? Style.accent : Style.textPrimary
+                                }
                             }
                             background: Rectangle {
                                 color: parent.highlighted ? Style.surfaceLight : "transparent"
@@ -334,10 +345,21 @@ Item {
                                 }
                             }
                             
-                            contentItem: Text {
-                                text: parent.text
-                                font: parent.font
-                                color: parent.highlighted ? Style.accent : Style.textPrimary
+                            contentItem: Row {
+                                spacing: 8
+                                leftPadding: 8
+                                
+                                Icon {
+                                    name: "devices"
+                                    size: 14
+                                    color: parent.parent.highlighted ? Style.accent : Style.textSecondary
+                                }
+                                
+                                Text {
+                                    text: parent.parent.text
+                                    font: parent.parent.font
+                                    color: parent.parent.highlighted ? Style.accent : Style.textPrimary
+                                }
                             }
                             background: Rectangle {
                                 color: parent.highlighted ? Style.surfaceLight : "transparent"

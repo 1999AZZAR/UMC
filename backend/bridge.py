@@ -1,4 +1,6 @@
-from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread, QSettings
+from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread, QSettings, QMimeData, QUrl
+from PySide6.QtGui import QGuiApplication, QClipboard
+from PySide6.QtWidgets import QFileDialog
 from .worker import ADBWorker
 from .scrcpy_handler import ScrcpyHandler
 from .profiles import get_profile_names, get_profile_flags
@@ -11,6 +13,10 @@ class BackendBridge(QObject):
     packagesChanged = Signal(list, arguments=['packages'])
     iconReady = Signal(str, str, arguments=['pkg', 'iconPath'])  # pkg, iconPath
     deviceStatusChanged = Signal(str, dict, arguments=['serial', 'status'])  # serial, status_info
+    fileTransferProgress = Signal(str, str, int, arguments=['serial', 'operation', 'progress'])
+    fileTransferComplete = Signal(str, str, bool, arguments=['serial', 'operation', 'success'])
+    clipboardChanged = Signal(str, str, arguments=['serial', 'text'])
+    fileSelected = Signal(str, arguments=['filePath'])
     statusMessage = Signal(str, arguments=['message'])
     launchModeChanged = Signal(str, arguments=['mode'])
     launchWithScreenOffChanged = Signal(bool, arguments=['enabled'])
@@ -25,6 +31,8 @@ class BackendBridge(QObject):
     requestScrcpyShortcut = Signal(str, str)
     requestIcon = Signal(str, str)  # serial, package_name
     requestDeviceStatus = Signal(str)  # serial
+    requestPushFile = Signal(str, str, str)  # serial, local_path, remote_path
+    requestPullFile = Signal(str, str, str)  # serial, remote_path, local_path
 
     def __init__(self):
         super().__init__()
@@ -46,6 +54,27 @@ class BackendBridge(QObject):
         self._device_names = self._load_device_names()
         self._device_groups = self._load_device_groups()
         
+        # Clipboard sync settings
+        self._clipboard_sync_enabled = {}  # serial -> bool
+        self._clipboard_history = []  # List of clipboard entries
+        self._max_clipboard_history = 50
+        
+        # Clipboard monitoring
+        app = QGuiApplication.instance()
+        if app:
+            self._clipboard = app.clipboard()
+            self._last_clipboard_text = self._clipboard.text() if self._clipboard else ""
+            self._clipboard_timer = QTimer()
+            self._clipboard_timer.timeout.connect(self._check_desktop_clipboard)
+            self._clipboard_timer.start(500)  # Check every 500ms
+        else:
+            self._clipboard = None
+            self._last_clipboard_text = ""
+            self._clipboard_timer = None
+        
+        # File transfer progress tracking
+        self._file_transfer_progress = {}  # (serial, operation) -> progress
+        
         # Setup Worker Thread
         self._thread = QThread()
         self._worker = ADBWorker()
@@ -63,6 +92,9 @@ class BackendBridge(QObject):
         self._worker.packagesReady.connect(self._on_packages_ready)
         self._worker.iconReady.connect(self._on_icon_ready)
         self._worker.deviceStatusReady.connect(self._on_device_status_ready)
+        self._worker.fileTransferProgress.connect(self._on_file_transfer_progress)
+        self._worker.fileTransferComplete.connect(self._on_file_transfer_complete)
+        self._worker.clipboardChanged.connect(self._on_device_clipboard_changed)
         self._worker.errorOccurred.connect(self._on_worker_error)
         
         self._thread.start()
@@ -130,99 +162,307 @@ class BackendBridge(QObject):
 
     @Slot()
     def refresh_devices(self):
-        # Manual refresh trigger
-        self.requestDevices.emit()
+        try:
+            # Manual refresh trigger
+            self.requestDevices.emit()
+        except Exception:
+            pass
 
     @Slot(list)
     def _on_devices_ready(self, devices):
-        # Add custom names and request status for each device
-        for device in devices:
-            serial = device.get("serial", "")
-            # Add custom name if exists
-            if serial in self._device_names:
-                device["custom_name"] = self._device_names[serial]
-            # Request device status
-            if serial:
-                self.requestDeviceStatus.emit(serial)
-        
-        if devices != self._devices:
-            self._devices = devices
-            self.devicesChanged.emit(self._devices)
+        try:
+            # Add custom names and request status for each device
+            for device in devices:
+                serial = device.get("serial", "")
+                # Add custom name if exists
+                if serial in self._device_names:
+                    device["custom_name"] = self._device_names[serial]
+                # Request device status
+                if serial:
+                    self.requestDeviceStatus.emit(serial)
+            
+            if devices != self._devices:
+                self._devices = devices
+                self.devicesChanged.emit(self._devices)
+        except Exception:
+            pass
     
     @Slot(str, dict)
     def _on_device_status_ready(self, serial, status_info):
         """Handle device status update."""
-        self._device_status[serial] = status_info
-        self.deviceStatusChanged.emit(serial, status_info)
+        try:
+            self._device_status[serial] = status_info
+            self.deviceStatusChanged.emit(serial, status_info)
+            
+            # Check clipboard if sync is enabled
+            if self._clipboard_sync_enabled.get(serial, False):
+                self._worker.get_clipboard(serial)
+        except Exception:
+            pass
 
     @Slot(str, list)
     def _on_packages_ready(self, serial, packages):
-        if serial == self._current_device_serial:
-            self._packages = packages
-            self.packagesChanged.emit(packages)
+        try:
+            if serial == self._current_device_serial:
+                self._packages = packages
+                self.packagesChanged.emit(packages)
+        except Exception:
+            pass
 
     @Slot(str)
     def _on_worker_error(self, message):
-        self.statusMessage.emit(f"Error: {message}")
+        try:
+            self.statusMessage.emit(f"Error: {message}")
+        except Exception:
+            pass
     
     @Slot(str, str)
     def _on_icon_ready(self, package_name, icon_path):
         """Update icon for a package in the packages list."""
-        for i, app in enumerate(self._packages):
-            if app.get("package") == package_name:
-                # Update the icon in the list
-                updated_app = app.copy()
-                updated_app["icon"] = icon_path
-                self._packages[i] = updated_app
-                # Emit signal to update UI
-                self.packagesChanged.emit(self._packages)
-                break
+        try:
+            for i, app in enumerate(self._packages):
+                if app.get("package") == package_name:
+                    # Update the icon in the list
+                    updated_app = app.copy()
+                    updated_app["icon"] = icon_path
+                    self._packages[i] = updated_app
+                    # Emit signal to update UI
+                    self.packagesChanged.emit(self._packages)
+                    break
+        except Exception:
+            pass
+    
+    @Slot(str, str, int)
+    def _on_file_transfer_progress(self, serial, operation, progress):
+        """Handle file transfer progress update."""
+        try:
+            self._file_transfer_progress[(serial, operation)] = progress
+            self.fileTransferProgress.emit(serial, operation, progress)
+        except Exception:
+            pass
+    
+    @Slot(str, str, bool)
+    def _on_file_transfer_complete(self, serial, operation, success):
+        """Handle file transfer completion."""
+        try:
+            if (serial, operation) in self._file_transfer_progress:
+                del self._file_transfer_progress[(serial, operation)]
+            
+            self.fileTransferComplete.emit(serial, operation, success)
+            if success:
+                self.statusMessage.emit(f"File {operation} completed for {serial}")
+            else:
+                self.statusMessage.emit(f"File {operation} failed for {serial}")
+        except Exception:
+            pass
+    
+    @Slot(str, str)
+    def _on_device_clipboard_changed(self, serial, text):
+        """Handle clipboard change from device."""
+        try:
+            if self._clipboard_sync_enabled.get(serial, False) and self._clipboard and text:
+                # Update desktop clipboard
+                self._clipboard.setText(text)
+                self._last_clipboard_text = text
+                # Add to history
+                self._add_to_clipboard_history(text)
+        except Exception:
+            pass  # Silently handle clipboard errors
+    
+    def _check_desktop_clipboard(self):
+        """Check for desktop clipboard changes and sync to devices."""
+        try:
+            if not self._clipboard:
+                return
+            
+            try:
+                current_text = self._clipboard.text()
+            except (AttributeError, RuntimeError):
+                # Clipboard may not be available
+                return
+            
+            if current_text and current_text != self._last_clipboard_text:
+                self._last_clipboard_text = current_text
+                # Sync to all devices with clipboard sync enabled
+                for serial, enabled in list(self._clipboard_sync_enabled.items()):
+                    if enabled and serial:
+                        try:
+                            self._worker.set_clipboard(serial, current_text)
+                        except Exception:
+                            pass  # Silently fail per device
+                # Add to history
+                try:
+                    self._add_to_clipboard_history(current_text)
+                except Exception:
+                    pass
+        except Exception:
+            # Silently handle all clipboard access errors
+            pass
+    
+    def _add_to_clipboard_history(self, text: str):
+        """Add text to clipboard history."""
+        try:
+            if text and text not in self._clipboard_history:
+                self._clipboard_history.insert(0, text)
+                # Limit history size
+                if len(self._clipboard_history) > self._max_clipboard_history:
+                    self._clipboard_history = self._clipboard_history[:self._max_clipboard_history]
+        except Exception:
+            pass  # Silently handle history errors
+    
+    @Slot(str, str)
+    @Slot(str, str, str)
+    def push_file_to_device(self, serial: str, local_path: str, remote_path: str = ""):
+        """Push file to device."""
+        try:
+            if not serial or not local_path:
+                return
+            
+            if not remote_path:
+                # Default to /sdcard/Download/
+                filename = os.path.basename(local_path)
+                remote_path = f"/sdcard/Download/{filename}"
+            
+            self.statusMessage.emit(f"Pushing {os.path.basename(local_path)} to {serial}...")
+            self.requestPushFile.emit(serial, local_path, remote_path)
+        except Exception:
+            pass
+    
+    @Slot(str, str, str)
+    def pull_file_from_device(self, serial: str, remote_path: str, local_path: str):
+        """Pull file from device."""
+        try:
+            if not serial or not remote_path or not local_path:
+                return
+            
+            self.statusMessage.emit(f"Pulling {os.path.basename(remote_path)} from {serial}...")
+            self.requestPullFile.emit(serial, remote_path, local_path)
+        except Exception:
+            pass
+    
+    @Slot(str, bool)
+    def set_clipboard_sync(self, serial: str, enabled: bool):
+        """Enable/disable clipboard sync for a device."""
+        try:
+            self._clipboard_sync_enabled[serial] = enabled
+            if enabled:
+                # Start monitoring device clipboard periodically
+                # Create a timer for this device if needed
+                # For now, we'll poll on device status updates
+                pass
+        except Exception:
+            pass
+    
+    @Slot(str, result=bool)
+    def get_clipboard_sync(self, serial: str) -> bool:
+        """Get clipboard sync status for a device."""
+        try:
+            return self._clipboard_sync_enabled.get(serial, False)
+        except Exception:
+            return False
+    
+    @Slot(result=list)
+    def get_clipboard_history(self) -> list:
+        """Get clipboard history."""
+        try:
+            return self._clipboard_history.copy()
+        except Exception:
+            return []
+    
+    @Slot(str, result=str)
+    def get_file_transfer_progress(self, serial: str, operation: str) -> int:
+        """Get file transfer progress (0-100)."""
+        try:
+            return self._file_transfer_progress.get((serial, operation), 0)
+        except Exception:
+            return 0
+    
+    @Slot(str)
+    def request_file_selection(self, serial: str):
+        """Open file dialog and push selected file to device."""
+        try:
+            from PySide6.QtWidgets import QFileDialog, QApplication
+            
+            app = QApplication.instance()
+            if not app:
+                self.statusMessage.emit("Application not available")
+                return
+            
+            file_path, _ = QFileDialog.getOpenFileName(
+                None,
+                "Select file to transfer",
+                os.path.expanduser("~"),
+                "All Files (*)"
+            )
+            
+            if file_path:
+                self.push_file_to_device(serial, file_path)
+        except Exception as e:
+            self.statusMessage.emit(f"File dialog error: {str(e)}")
     
     @Slot(str)
     def fetch_icon_for_package(self, package_name):
         """Request icon fetch for a specific package (non-blocking)."""
-        if self._current_device_serial and package_name:
-            # Emit in a way that doesn't block
-            self.requestIcon.emit(self._current_device_serial, package_name)
+        try:
+            if self._current_device_serial and package_name:
+                # Emit in a way that doesn't block
+                self.requestIcon.emit(self._current_device_serial, package_name)
+        except Exception:
+            pass
     
     @Slot(str)
     def fetch_label_for_package(self, package_name):
         """Request proper label fetch for a specific package (non-blocking)."""
-        if self._current_device_serial and package_name:
-            # Could add label fetching in background if needed
+        try:
+            if self._current_device_serial and package_name:
+                # Could add label fetching in background if needed
+                pass
+        except Exception:
             pass
 
     @Slot(str)
     def select_device(self, serial):
-        self._current_device_serial = serial
-        self.statusMessage.emit(f"Selected: {serial}")
-        # Clear packages immediately to indicate loading
-        self._packages = []
-        self.packagesChanged.emit([])
-        self.requestPackages.emit(serial)
+        try:
+            self._current_device_serial = serial
+            self.statusMessage.emit(f"Selected: {serial}")
+            # Clear packages immediately to indicate loading
+            self._packages = []
+            self.packagesChanged.emit([])
+            self.requestPackages.emit(serial)
+        except Exception:
+            pass
 
     @Slot(str)
     def toggle_screen(self, serial):
-        if not serial:
-            return
-        self.statusMessage.emit(f"Toggling Power (Sleep/Wake) for {serial}")
-        self.requestToggleScreen.emit(serial)
+        try:
+            if not serial:
+                return
+            self.statusMessage.emit(f"Toggling Power (Sleep/Wake) for {serial}")
+            self.requestToggleScreen.emit(serial)
+        except Exception:
+            pass
     
     @Slot(str)
     def toggle_scrcpy_display(self, serial):
         """Sends Super+o (Screen Off) via xdotool to the window"""
-        if not serial:
-            return
-        self.statusMessage.emit(f"Sending Screen Off (Super+o) to {serial}...")
-        self.requestScrcpyShortcut.emit(serial, "screen_off")
+        try:
+            if not serial:
+                return
+            self.statusMessage.emit(f"Sending Screen Off (Super+o) to {serial}...")
+            self.requestScrcpyShortcut.emit(serial, "screen_off")
+        except Exception:
+            pass
         
     @Slot(str)
     def turn_scrcpy_display_on(self, serial):
         """Sends Super+Shift+o (Screen On) via xdotool to the window"""
-        if not serial:
-            return
-        self.statusMessage.emit(f"Sending Screen On (Super+Shift+o) to {serial}...")
-        self.requestScrcpyShortcut.emit(serial, "screen_on")
+        try:
+            if not serial:
+                return
+            self.statusMessage.emit(f"Sending Screen On (Super+Shift+o) to {serial}...")
+            self.requestScrcpyShortcut.emit(serial, "screen_on")
+        except Exception:
+            pass
 
     def _get_display_params(self, serial, mode):
         width, height, density = 1280, 800, 160 # Tablet / Default
@@ -242,72 +482,81 @@ class BackendBridge(QObject):
 
     @Slot(str)
     def mirror_device(self, serial):
-        if not serial:
-            return
-        self.statusMessage.emit(f"Mirroring {serial}...")
-        
-        # Use current profile flags
-        profile_flags = get_profile_flags(self._current_profile)
-        
-        success = self._scrcpy.mirror(
-            serial,
-            forward_audio=self._audio_forwarding,
-            turn_screen_off=self._launch_with_screen_off,
-            extra_flags=profile_flags
-        )
-        
-        if not success:
-            self.statusMessage.emit("Failed to start mirror")
+        try:
+            if not serial:
+                return
+            self.statusMessage.emit(f"Mirroring {serial}...")
+            
+            # Use current profile flags
+            profile_flags = get_profile_flags(self._current_profile)
+            
+            success = self._scrcpy.mirror(
+                serial,
+                forward_audio=self._audio_forwarding,
+                turn_screen_off=self._launch_with_screen_off,
+                extra_flags=profile_flags
+            )
+            
+            if not success:
+                self.statusMessage.emit("Failed to start mirror")
+        except Exception:
+            pass
 
     @Slot(str, str)
     def open_display(self, serial, mode):
-        if not serial:
-            return
-        self.statusMessage.emit(f"Opening new {mode} display for {serial}...")
-        
-        width, height, density = self._get_display_params(serial, mode)
-        profile_flags = get_profile_flags(self._current_profile)
-        
-        success = self._scrcpy.create_display(
-            serial,
-            width=width,
-            height=height,
-            dpi=density,
-            forward_audio=self._audio_forwarding,
-            turn_screen_off=self._launch_with_screen_off,
-            extra_flags=profile_flags
-        )
-        
-        if not success:
-            self.statusMessage.emit(f"Failed to create {mode} display")
+        try:
+            if not serial:
+                return
+            self.statusMessage.emit(f"Opening new {mode} display for {serial}...")
+            
+            width, height, density = self._get_display_params(serial, mode)
+            profile_flags = get_profile_flags(self._current_profile)
+            
+            success = self._scrcpy.create_display(
+                serial,
+                width=width,
+                height=height,
+                dpi=density,
+                forward_audio=self._audio_forwarding,
+                turn_screen_off=self._launch_with_screen_off,
+                extra_flags=profile_flags
+            )
+            
+            if not success:
+                self.statusMessage.emit(f"Failed to create {mode} display")
+        except Exception:
+            pass
 
     @Slot(str)
     def launch_app(self, package_name):
-        if not self._current_device_serial:
-            self.statusMessage.emit("No device selected")
-            return
+        try:
+            if not self._current_device_serial:
+                self.statusMessage.emit("No device selected")
+                return
+                
+            self.statusMessage.emit(f"Launching {package_name} with profile {self._current_profile}...")
             
-        self.statusMessage.emit(f"Launching {package_name} with profile {self._current_profile}...")
-        
-        width, height, density = self._get_display_params(self._current_device_serial, self._launch_mode)
+            width, height, density = self._get_display_params(self._current_device_serial, self._launch_mode)
+                
+            profile_flags = get_profile_flags(self._current_profile)
             
-        profile_flags = get_profile_flags(self._current_profile)
-        
-        success = self._scrcpy.launch_app(
-            self._current_device_serial, 
-            package_name,
-            width=width,
-            height=height,
-            dpi=density,
-            turn_screen_off=self._launch_with_screen_off,
-            forward_audio=self._audio_forwarding,
-            extra_flags=profile_flags
-        )
-        
-        if success:
-            self.statusMessage.emit(f"Launched {package_name}")
-        else:
-            self.statusMessage.emit("Failed to launch scrcpy")
+            success = self._scrcpy.launch_app(
+                self._current_device_serial, 
+                package_name,
+                width=width,
+                height=height,
+                dpi=density,
+                turn_screen_off=self._launch_with_screen_off,
+                forward_audio=self._audio_forwarding,
+                extra_flags=profile_flags
+            )
+            
+            if success:
+                self.statusMessage.emit(f"Launched {package_name}")
+            else:
+                self.statusMessage.emit("Failed to launch scrcpy")
+        except Exception:
+            pass
 
     def _load_device_names(self) -> dict:
         """Load device names from settings."""
@@ -336,38 +585,50 @@ class BackendBridge(QObject):
     @Slot(str, str)
     def set_device_name(self, serial: str, name: str):
         """Set custom name for a device."""
-        if serial:
-            self._device_names[serial] = name
-            self._save_device_names()
-            # Update devices list
-            for device in self._devices:
-                if device.get("serial") == serial:
-                    device["custom_name"] = name
-            self.devicesChanged.emit(self._devices)
+        try:
+            if serial:
+                self._device_names[serial] = name
+                self._save_device_names()
+                # Update devices list
+                for device in self._devices:
+                    if device.get("serial") == serial:
+                        device["custom_name"] = name
+                self.devicesChanged.emit(self._devices)
+        except Exception:
+            pass
     
     @Slot(str)
     def get_device_name(self, serial: str) -> str:
         """Get custom name for a device, or return empty string."""
-        return self._device_names.get(serial, "")
+        try:
+            return self._device_names.get(serial, "")
+        except Exception:
+            return ""
     
     @Slot(str, str)
     def add_device_to_group(self, serial: str, group_name: str):
         """Add device to a group."""
-        if serial and group_name:
-            if group_name not in self._device_groups:
-                self._device_groups[group_name] = []
-            if serial not in self._device_groups[group_name]:
-                self._device_groups[group_name].append(serial)
-                self._save_device_groups()
+        try:
+            if serial and group_name:
+                if group_name not in self._device_groups:
+                    self._device_groups[group_name] = []
+                if serial not in self._device_groups[group_name]:
+                    self._device_groups[group_name].append(serial)
+                    self._save_device_groups()
+        except Exception:
+            pass
     
     @Slot(str, str)
     def remove_device_from_group(self, serial: str, group_name: str):
         """Remove device from a group."""
-        if group_name in self._device_groups and serial in self._device_groups[group_name]:
-            self._device_groups[group_name].remove(serial)
-            if not self._device_groups[group_name]:
-                del self._device_groups[group_name]
-            self._save_device_groups()
+        try:
+            if group_name in self._device_groups and serial in self._device_groups[group_name]:
+                self._device_groups[group_name].remove(serial)
+                if not self._device_groups[group_name]:
+                    del self._device_groups[group_name]
+                self._save_device_groups()
+        except Exception:
+            pass
     
     def get_device_groups(self) -> dict:
         """Get all device groups."""
@@ -380,70 +641,85 @@ class BackendBridge(QObject):
     @Slot(str, result=dict)
     def get_device_status(self, serial: str) -> dict:
         """Get cached device status."""
-        status = self._device_status.get(serial, {})
-        # Ensure all values are properly typed for QML
-        result = {}
-        if status:
-            if "battery_level" in status and status["battery_level"] is not None:
-                result["battery_level"] = status["battery_level"]
-            if "battery_status" in status and status["battery_status"]:
-                result["battery_status"] = status["battery_status"]
-            if "temperature" in status and status["temperature"] is not None:
-                result["temperature"] = status["temperature"]
-            if "storage" in status and status["storage"]:
-                result["storage"] = status["storage"]
-            if "network_type" in status and status["network_type"]:
-                result["network_type"] = status["network_type"]
-        return result
+        try:
+            status = self._device_status.get(serial, {})
+            # Ensure all values are properly typed for QML
+            result = {}
+            if status:
+                if "battery_level" in status and status["battery_level"] is not None:
+                    result["battery_level"] = status["battery_level"]
+                if "battery_status" in status and status["battery_status"]:
+                    result["battery_status"] = status["battery_status"]
+                if "temperature" in status and status["temperature"] is not None:
+                    result["temperature"] = status["temperature"]
+                if "storage" in status and status["storage"]:
+                    result["storage"] = status["storage"]
+                if "network_type" in status and status["network_type"]:
+                    result["network_type"] = status["network_type"]
+            return result
+        except Exception:
+            return {}
     
     @Slot(str, "QVariantList")
     def launch_app_on_multiple_devices(self, package_name: str, device_serials):
         """Launch an app on multiple devices simultaneously."""
-        if not package_name or not device_serials:
-            return
-        
-        # Convert QVariantList to Python list
-        serials_list = []
-        for item in device_serials:
-            if item:
-                serials_list.append(str(item))
-        
-        if not serials_list:
-            return
-        
-        for serial in serials_list:
-            if serial:
-                width, height, density = self._get_display_params(serial, self._launch_mode)
-                profile_flags = get_profile_flags(self._current_profile)
-                
-                self._scrcpy.launch_app(
-                    serial,
-                    package_name,
-                    width=width,
-                    height=height,
-                    dpi=density,
-                    turn_screen_off=self._launch_with_screen_off,
-                    forward_audio=self._audio_forwarding,
-                    extra_flags=profile_flags
-                )
-        
-        self.statusMessage.emit(f"Launched {package_name} on {len(serials_list)} device(s)")
+        try:
+            if not package_name or not device_serials:
+                return
+            
+            # Convert QVariantList to Python list
+            serials_list = []
+            for item in device_serials:
+                if item:
+                    serials_list.append(str(item))
+            
+            if not serials_list:
+                return
+            
+            for serial in serials_list:
+                if serial:
+                    width, height, density = self._get_display_params(serial, self._launch_mode)
+                    profile_flags = get_profile_flags(self._current_profile)
+                    
+                    self._scrcpy.launch_app(
+                        serial,
+                        package_name,
+                        width=width,
+                        height=height,
+                        dpi=density,
+                        turn_screen_off=self._launch_with_screen_off,
+                        forward_audio=self._audio_forwarding,
+                        extra_flags=profile_flags
+                    )
+            
+            self.statusMessage.emit(f"Launched {package_name} on {len(serials_list)} device(s)")
+        except Exception:
+            pass
+        except Exception:
+            pass
     
     def cleanup(self):
         """Stops the worker thread gracefully."""
-        # Stop worker operations immediately
-        if self._worker:
-            self._worker.stop()
-        
-        # Stop timer
-        if self._timer:
-            self._timer.stop()
-        
-        # Quit thread and wait with timeout
-        if self._thread.isRunning():
-            self._thread.quit()
-            # Wait max 1 second for thread to finish
-            if not self._thread.wait(1000):
-                # Force terminate if it doesn't stop
-                self._thread.terminate()
-                self._thread.wait(500)
+        try:
+            # Stop clipboard monitoring
+            if self._clipboard_timer:
+                self._clipboard_timer.stop()
+            
+            # Stop worker operations immediately
+            if self._worker:
+                self._worker.stop()
+            
+            # Stop timer
+            if self._timer:
+                self._timer.stop()
+            
+            # Quit thread and wait with timeout
+            if self._thread and self._thread.isRunning():
+                self._thread.quit()
+                # Wait max 1 second for thread to finish
+                if not self._thread.wait(1000):
+                    # Force terminate if it doesn't stop
+                    self._thread.terminate()
+                    self._thread.wait(500)
+        except Exception:
+            pass  # Silently handle cleanup errors

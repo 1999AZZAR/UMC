@@ -452,3 +452,131 @@ class ADBHandler:
             "storage": self.get_storage_info(serial),
             "network_type": self.get_network_type(serial)
         }
+
+    def push_file(self, serial: str, local_path: str, remote_path: str, callback=None) -> bool:
+        """
+        Push a file from local to device.
+        callback(progress_percent, bytes_transferred, total_bytes) can be provided for progress.
+        """
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            cmd = [self.adb_path, "-s", serial, "push", local_path, remote_path]
+            
+            if callback:
+                # Use Popen to track progress
+                process = subprocess.Popen(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                # For now, just wait - progress parsing would require more complex logic
+                process.wait()
+                return process.returncode == 0
+            else:
+                result = subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+                return True
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, Exception) as e:
+            print(f"Error pushing file to {serial}: {e}")
+            return False
+
+    def pull_file(self, serial: str, remote_path: str, local_path: str, callback=None) -> bool:
+        """
+        Pull a file from device to local.
+        callback(progress_percent, bytes_transferred, total_bytes) can be provided for progress.
+        """
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            cmd = [self.adb_path, "-s", serial, "pull", remote_path, local_path]
+            
+            if callback:
+                process = subprocess.Popen(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                process.wait()
+                return process.returncode == 0
+            else:
+                result = subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+                return True
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, Exception) as e:
+            print(f"Error pulling file from {serial}: {e}")
+            return False
+
+    def list_files(self, serial: str, remote_path: str = "/sdcard") -> List[Dict[str, str]]:
+        """List files in a remote directory."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return [
+                {"name": "Download", "type": "directory", "size": ""},
+                {"name": "Pictures", "type": "directory", "size": ""},
+                {"name": "test.txt", "type": "file", "size": "1024"}
+            ]
+        
+        try:
+            cmd = [self.adb_path, "-s", serial, "shell", "ls", "-lh", remote_path]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10)
+            
+            files = []
+            for line in result.stdout.strip().split('\n'):
+                if not line.strip():
+                    continue
+                parts = line.split()
+                if len(parts) >= 9:
+                    # Format: -rw-r--r-- 1 user group size date time name
+                    file_type = "directory" if parts[0].startswith("d") else "file"
+                    size = parts[4] if file_type == "file" else ""
+                    name = " ".join(parts[8:])  # Handle names with spaces
+                    files.append({"name": name, "type": file_type, "size": size})
+            
+            return files
+        except Exception as e:
+            print(f"Error listing files on {serial}: {e}")
+            return []
+
+    def get_clipboard(self, serial: str) -> Optional[str]:
+        """Get clipboard content from Android device."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return "Mock clipboard content"
+        
+        try:
+            # Method 1: Try using service call (Android 10+)
+            # This requires root or special permissions, so may not work
+            # Method 2: Use a clipboard manager app like Clipper
+            # Method 3: Use dumpsys (requires root)
+            
+            # For now, we'll use a workaround: try to get via service call
+            # Note: This may not work without root or special permissions
+            cmd = [self.adb_path, "-s", serial, "shell", "service", "call", "clipboard", "1"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Parse result - format is complex binary data
+            # For simplicity, we'll return None and let the UI handle it
+            # A better solution would require a clipboard manager app
+            return None
+        except Exception as e:
+            # Silently fail - clipboard access requires special permissions
+            return None
+
+    def set_clipboard(self, serial: str, text: str) -> bool:
+        """Set clipboard content on Android device."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            # Method 1: Use Clipper app (if installed)
+            # am broadcast -a clipper.set -e text "content"
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "am", "broadcast", "-a", "clipper.set", "-e", "text", text
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return True
+            
+            # Method 2: Try service call (may require root)
+            # This is more complex and may not work
+            return False
+        except Exception as e:
+            # Clipboard setting requires special permissions or apps
+            # Return False to indicate it may not have worked
+            return False

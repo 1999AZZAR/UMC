@@ -583,6 +583,207 @@ Rectangle {
                             }
                         }
                     }
+                    
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: Style.divider
+                    }
+                    
+                    // Clipboard sync toggle
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        
+                        Text {
+                            text: "Clipboard Sync:"
+                            font.pixelSize: 10
+                            color: Style.textSecondary
+                        }
+                        
+                        Item { Layout.fillWidth: true }
+                        
+                        Rectangle {
+                            id: clipboardToggle
+                            width: 36
+                            height: 20
+                            radius: 10
+                            color: clipboardToggle.enabled ? Style.accent : Style.surfaceLight
+                            
+                            property bool enabled: false
+                            
+                            Component.onCompleted: {
+                                if (bridge) {
+                                    enabled = bridge.get_clipboard_sync(modelData.serial)
+                                }
+                            }
+                            
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: clipboardToggle.enabled ? parent.width - width - 2 : 2
+                                width: 16
+                                height: 16
+                                radius: 8
+                                color: "white"
+                                
+                                Behavior on x { NumberAnimation { duration: 200 } }
+                            }
+                            
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (bridge) {
+                                        var newState = !clipboardToggle.enabled
+                                        bridge.set_clipboard_sync(modelData.serial, newState)
+                                        clipboardToggle.enabled = newState
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // File transfer area
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 70
+                        color: Style.surfaceLight
+                        radius: 4
+                        border.color: Style.divider
+                        border.width: 1
+                        
+                        property int transferProgress: 0
+                        property string currentOperation: ""
+                        
+                        // Listen for transfer progress
+                        Connections {
+                            target: bridge
+                            function onFileTransferProgress(serial, operation, progress) {
+                                if (serial === modelData.serial) {
+                                    parent.transferProgress = progress
+                                    parent.currentOperation = operation
+                                }
+                            }
+                            function onFileTransferComplete(serial, operation, success) {
+                                if (serial === modelData.serial) {
+                                    parent.transferProgress = 0
+                                    parent.currentOperation = ""
+                                }
+                            }
+                        }
+                        
+                        // Drag and drop area
+                        DropArea {
+                            id: dropArea
+                            anchors.fill: parent
+                            
+                            onDropped: function(drop) {
+                                if (drop.hasUrls && bridge && modelData.serial) {
+                                    var urls = drop.urls
+                                    for (var i = 0; i < urls.length; i++) {
+                                        var filePath = urls[i].toString().replace("file://", "")
+                                        if (filePath && modelData.serial) {
+                                            bridge.push_file_to_device(modelData.serial, filePath)
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                color: Style.accent
+                                radius: 2
+                                opacity: dropArea.containsDrag ? 0.2 : 0
+                                
+                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                            }
+                            
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 4
+                                
+                                Icon {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    name: "file_upload"
+                                    size: 20
+                                    color: Style.textSecondary
+                                }
+                                
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: parent.parent.parent.transferProgress > 0 ? 
+                                          (parent.parent.parent.currentOperation === "push" ? "Uploading..." : "Downloading...") : 
+                                          "Drop files here"
+                                    font.pixelSize: 9
+                                    color: Style.textSecondary
+                                }
+                            }
+                            
+                            // Progress bar
+                            Rectangle {
+                                anchors.bottom: parent.bottom
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.margins: 4
+                                height: 4
+                                radius: 2
+                                color: Style.surface
+                                visible: parent.parent.transferProgress > 0
+                                
+                                Rectangle {
+                                    width: parent.width * (parent.parent.transferProgress / 100)
+                                    height: parent.height
+                                    color: Style.accent
+                                    radius: 2
+                                    
+                                    Behavior on width { NumberAnimation { duration: 100 } }
+                                }
+                            }
+                        }
+                        
+                        // File transfer button
+                        Rectangle {
+                            anchors.right: parent.right
+                            anchors.rightMargin: 4
+                            anchors.top: parent.top
+                            anchors.topMargin: 4
+                            width: 24
+                            height: 24
+                            radius: 4
+                            color: fileBtnArea.containsMouse ? Style.background : "transparent"
+                            
+                            Icon {
+                                anchors.centerIn: parent
+                                name: "folder"
+                                size: 12
+                                color: Style.textSecondary
+                            }
+                            
+                            MouseArea {
+                                id: fileBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    // Request file selection
+                                    if (bridge) {
+                                        bridge.request_file_selection(modelData.serial)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // File dialog - using native file picker via bridge
+                    Connections {
+                        target: bridge
+                        function onFileSelected(filePath) {
+                            if (filePath && modelData.serial) {
+                                bridge.push_file_to_device(modelData.serial, filePath)
+                            }
+                        }
+                    }
                 }
             }
         }

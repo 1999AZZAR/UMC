@@ -192,6 +192,69 @@ Item {
                 ctx.lineTo(w - p + 1, p - 1 + 4);
                 ctx.stroke();
             }
+            else if (root.name === "play_arrow") {
+                // Play arrow (right-pointing triangle)
+                ctx.beginPath();
+                ctx.moveTo(p + 2, p);
+                ctx.lineTo(p + 2, h - p);
+                ctx.lineTo(w - p, cy);
+                ctx.closePath();
+                ctx.fill();
+            }
+            else if (root.name === "devices" || root.name === "device_multiple") {
+                // Multiple devices (two overlapping rectangles)
+                var x1 = p, y1 = p + 2, w1 = w/2, h1 = h - 2*p - 2;
+                var x2 = w/2 - 2, y2 = p, w2 = w/2, h2 = h - 2*p;
+                
+                // First device
+                ctx.beginPath();
+                ctx.rect(x1, y1, w1, h1);
+                ctx.stroke();
+                
+                // Second device (overlapping)
+                ctx.beginPath();
+                ctx.rect(x2, y2, w2, h2);
+                ctx.stroke();
+            }
+            else if (root.name === "file_upload" || root.name === "upload") {
+                // Upload arrow (up arrow with line)
+                ctx.beginPath();
+                ctx.moveTo(cx, h - p);
+                ctx.lineTo(cx, p + 4);
+                ctx.stroke();
+                // Arrow head
+                ctx.beginPath();
+                ctx.moveTo(cx, p + 4);
+                ctx.lineTo(cx - 3, p + 7);
+                ctx.lineTo(cx + 3, p + 7);
+                ctx.closePath();
+                ctx.fill();
+            }
+            else if (root.name === "folder") {
+                // Folder icon
+                var x = p, y = p + 2, rw = w - 2*p, rh = h - 2*p - 2;
+                ctx.beginPath();
+                ctx.moveTo(x + 4, y);
+                ctx.lineTo(x + 4, y - 2);
+                ctx.lineTo(x + rw - 2, y - 2);
+                ctx.lineTo(x + rw - 2, y + rh);
+                ctx.lineTo(x, y + rh);
+                ctx.lineTo(x, y);
+                ctx.closePath();
+                ctx.stroke();
+                ctx.fillStyle = root.color;
+                ctx.globalAlpha = 0.2;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+            else if (root.name === "expand_more") {
+                // Down arrow (chevron)
+                ctx.beginPath();
+                ctx.moveTo(p, cy - 3);
+                ctx.lineTo(cx, cy + 3);
+                ctx.lineTo(w - p, cy - 3);
+                ctx.stroke();
+            }
         }
     }
     

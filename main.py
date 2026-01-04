@@ -1,13 +1,14 @@
 import sys
 import os
 import signal
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtCore import QUrl
 from backend.bridge import BackendBridge
 
 def main():
-    app = QGuiApplication(sys.argv)
+    # Use QApplication instead of QGuiApplication for file dialogs
+    app = QApplication(sys.argv)
     engine = QQmlApplicationEngine()
 
     # Create the bridge
