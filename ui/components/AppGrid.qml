@@ -275,6 +275,74 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: bridge.launch_app(modelData.package || modelData)
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        
+                        onPressAndHold: {
+                            if (mouse.button === Qt.RightButton) {
+                                batchMenu.open()
+                            }
+                        }
+                    }
+                    
+                    // Batch launch menu
+                    Menu {
+                        id: batchMenu
+                        y: parent.height
+                        
+                        background: Rectangle {
+                            color: Style.surface
+                            border.color: Style.divider
+                            radius: 4
+                        }
+                        
+                        MenuItem {
+                            text: "Launch on Selected Device"
+                            font: Style.bodySmallFont
+                            onTriggered: bridge.launch_app(modelData.package || modelData)
+                            
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: parent.highlighted ? Style.accent : Style.textPrimary
+                            }
+                            background: Rectangle {
+                                color: parent.highlighted ? Style.surfaceLight : "transparent"
+                            }
+                        }
+                        
+                        MenuSeparator {
+                            contentItem: Rectangle {
+                                width: parent.width
+                                height: 1
+                                color: Style.divider
+                            }
+                        }
+                        
+                        MenuItem {
+                            text: "Launch on All Devices"
+                            font: Style.bodySmallFont
+                            onTriggered: {
+                                if (bridge) {
+                                    var devices = bridge.devices || []
+                                    var serials = []
+                                    for (var i = 0; i < devices.length; i++) {
+                                        if (devices[i].serial) {
+                                            serials.push(devices[i].serial)
+                                        }
+                                    }
+                                    bridge.launch_app_on_multiple_devices(modelData.package || modelData, serials)
+                                }
+                            }
+                            
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: parent.highlighted ? Style.accent : Style.textPrimary
+                            }
+                            background: Rectangle {
+                                color: parent.highlighted ? Style.surfaceLight : "transparent"
+                            }
+                        }
                     }
                 }
             }

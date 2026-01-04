@@ -114,13 +114,35 @@ Rectangle {
             delegate: Rectangle {
                 id: deviceDelegate
                 width: ListView.view.width
-                height: 50
+                height: modelData.expanded ? 120 : 50
                 color: {
                     if (bridge && bridge.currentDeviceSerial === modelData.serial) return Style.surfaceHighlight
                     return ma.containsMouse ? Style.surfaceLight : "transparent"
                 }
                 
                 property bool isSelected: bridge && bridge.currentDeviceSerial === modelData.serial
+                property bool expanded: false
+                property var deviceStatus: ({})
+                
+                // Load device status
+                Component.onCompleted: {
+                    if (bridge && modelData.serial) {
+                        var status = bridge.get_device_status(modelData.serial)
+                        if (status) {
+                            deviceStatus = status
+                        }
+                    }
+                }
+                
+                // Listen for status updates
+                Connections {
+                    target: bridge
+                    function onDeviceStatusChanged(serial, status) {
+                        if (serial === modelData.serial) {
+                            deviceDelegate.deviceStatus = status
+                        }
+                    }
+                }
 
                 MouseArea {
                     id: ma
@@ -129,6 +151,9 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         bridge.select_device(modelData.serial)
+                    }
+                    onDoubleClicked: {
+                        deviceDelegate.expanded = !deviceDelegate.expanded
                     }
                 }
 
@@ -147,10 +172,10 @@ Rectangle {
                     
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 0
+                        spacing: 2
                         
                         Text {
-                            text: modelData.model
+                            text: modelData.custom_name || modelData.model
                             color: parent.parent.parent.isSelected ? Style.textPrimary : Style.textSecondary
                             font.family: Style.bodyFont.family
                             font.pixelSize: 12
@@ -165,8 +190,99 @@ Rectangle {
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
+                        
+                        // Status indicators row
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            visible: deviceDelegate.deviceStatus && Object.keys(deviceDelegate.deviceStatus).length > 0
+                            
+                            // Battery indicator
+                            Item {
+                                visible: deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.battery_level !== undefined && deviceDelegate.deviceStatus.battery_level !== null
+                                width: 40
+                                height: 12
+                                
+                                Rectangle {
+                                    anchors.fill: parent
+                                    anchors.margins: 1
+                                    color: Style.surfaceLight
+                                    radius: 2
+                                    
+                                    Rectangle {
+                                        width: parent.width * Math.min(deviceDelegate.deviceStatus.battery_level || 0, 100) / 100
+                                        height: parent.height
+                                        color: {
+                                            var level = deviceDelegate.deviceStatus.battery_level || 0
+                                            if (level > 50) return "#4CAF50"
+                                            if (level > 20) return "#FF9800"
+                                            return "#F44336"
+                                        }
+                                        radius: 2
+                                    }
+                                }
+                                
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: (deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.battery_level !== undefined ? deviceDelegate.deviceStatus.battery_level : 0) + "%"
+                                    font.pixelSize: 8
+                                    color: Style.textPrimary
+                                }
+                            }
+                            
+                            // Network type indicator
+                            Text {
+                                visible: deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.network_type !== undefined && deviceDelegate.deviceStatus.network_type !== ""
+                                text: deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.network_type === "wifi" ? "WiFi" : "USB"
+                                font.pixelSize: 8
+                                color: Style.textSecondary
+                            }
+                            
+                            // Temperature indicator
+                            Text {
+                                visible: deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.temperature !== undefined && deviceDelegate.deviceStatus.temperature !== null
+                                text: Math.round((deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.temperature) ? deviceDelegate.deviceStatus.temperature : 0) + "°C"
+                                font.pixelSize: 8
+                                color: {
+                                    var temp = deviceDelegate.deviceStatus.temperature || 0
+                                    if (temp > 45) return "#F44336"
+                                    if (temp > 40) return "#FF9800"
+                                    return Style.textSecondary
+                                }
+                            }
+                            
+                            Item { Layout.fillWidth: true }
+                        }
                     }
 
+                    // Expand/Collapse button
+                    Rectangle {
+                        width: 24
+                        height: 24
+                        radius: 4
+                        color: expandBtnArea.containsMouse ? Style.background : "transparent"
+                        visible: ma.containsMouse || parent.parent.isSelected
+                        
+                        Icon {
+                            anchors.centerIn: parent
+                            name: "expand_more"
+                            size: 14
+                            color: Style.textSecondary
+                            rotation: deviceDelegate.expanded ? 180 : 0
+                            Behavior on rotation { NumberAnimation { duration: 200 } }
+                        }
+                        
+                        MouseArea {
+                            id: expandBtnArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                deviceDelegate.expanded = !deviceDelegate.expanded
+                            }
+                        }
+                    }
+                    
                     // Actions Row
                     Row {
                         spacing: 4
@@ -353,6 +469,117 @@ Rectangle {
                                     }
                                 }
                                 ToolTip.visible: containsMouse
+                            }
+                        }
+                    }
+                }
+                
+                // Expanded device details
+                ColumnLayout {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.topMargin: 50
+                    anchors.margins: Style.spacingMedium
+                    spacing: 8
+                    visible: deviceDelegate.expanded
+                    
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: Style.divider
+                    }
+                    
+                    // Storage info
+                    Item {
+                        Layout.fillWidth: true
+                        height: 20
+                        visible: deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.storage !== undefined && deviceDelegate.deviceStatus.storage !== null
+                        
+                        Text {
+                            anchors.left: parent.left
+                            text: "Storage:"
+                            font.pixelSize: 10
+                            color: Style.textSecondary
+                        }
+                        
+                        Text {
+                            anchors.right: parent.right
+                            text: {
+                                if (deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.storage) {
+                                    var s = deviceDelegate.deviceStatus.storage
+                                    if (s && s.used !== undefined && s.total !== undefined) {
+                                        var used = Math.round(s.used / 1024)
+                                        var total = Math.round(s.total / 1024)
+                                        return used + "GB / " + total + "GB"
+                                    }
+                                }
+                                return ""
+                            }
+                            font.pixelSize: 10
+                            color: Style.textPrimary
+                        }
+                    }
+                    
+                    // Battery status
+                    Text {
+                        Layout.fillWidth: true
+                        visible: deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.battery_status !== undefined && deviceDelegate.deviceStatus.battery_status !== ""
+                        text: "Battery: " + (deviceDelegate.deviceStatus && deviceDelegate.deviceStatus.battery_status ? deviceDelegate.deviceStatus.battery_status : "")
+                        font.pixelSize: 10
+                        color: Style.textSecondary
+                    }
+                    
+                    // Device name editor
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        
+                        TextField {
+                            id: deviceNameField
+                            Layout.fillWidth: true
+                            placeholderText: "Custom name..."
+                            text: modelData.custom_name || ""
+                            font.pixelSize: 10
+                            height: 24
+                            
+                            background: Rectangle {
+                                color: Style.surfaceLight
+                                radius: 2
+                                border.color: deviceNameField.activeFocus ? Style.accent : "transparent"
+                                border.width: 1
+                            }
+                            
+                            onAccepted: {
+                                if (bridge) {
+                                    bridge.set_device_name(modelData.serial, text)
+                                }
+                            }
+                        }
+                        
+                        Rectangle {
+                            width: 24
+                            height: 24
+                            radius: 4
+                            color: saveNameBtnArea.containsMouse ? Style.background : "transparent"
+                            
+                            Icon {
+                                anchors.centerIn: parent
+                                name: "check"
+                                size: 12
+                                color: Style.accent
+                            }
+                            
+                            MouseArea {
+                                id: saveNameBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (bridge) {
+                                        bridge.set_device_name(modelData.serial, deviceNameField.text)
+                                    }
+                                }
                             }
                         }
                     }

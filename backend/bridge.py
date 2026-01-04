@@ -1,13 +1,16 @@
-from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread
+from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread, QSettings
 from .worker import ADBWorker
 from .scrcpy_handler import ScrcpyHandler
 from .profiles import get_profile_names, get_profile_flags
+import json
+import os
 
 class BackendBridge(QObject):
     # Signals
     devicesChanged = Signal(list, arguments=['devices'])
     packagesChanged = Signal(list, arguments=['packages'])
     iconReady = Signal(str, str, arguments=['pkg', 'iconPath'])  # pkg, iconPath
+    deviceStatusChanged = Signal(str, dict, arguments=['serial', 'status'])  # serial, status_info
     statusMessage = Signal(str, arguments=['message'])
     launchModeChanged = Signal(str, arguments=['mode'])
     launchWithScreenOffChanged = Signal(bool, arguments=['enabled'])
@@ -21,6 +24,7 @@ class BackendBridge(QObject):
     requestToggleScreen = Signal(str)
     requestScrcpyShortcut = Signal(str, str)
     requestIcon = Signal(str, str)  # serial, package_name
+    requestDeviceStatus = Signal(str)  # serial
 
     def __init__(self):
         super().__init__()
@@ -34,6 +38,14 @@ class BackendBridge(QObject):
         self._current_profile = "Default"
         self._profiles = get_profile_names()
         
+        # Device status cache
+        self._device_status = {}  # serial -> status_info
+        
+        # Device naming and groups
+        self._settings = QSettings("UMC", "DeviceManager")
+        self._device_names = self._load_device_names()
+        self._device_groups = self._load_device_groups()
+        
         # Setup Worker Thread
         self._thread = QThread()
         self._worker = ADBWorker()
@@ -45,10 +57,12 @@ class BackendBridge(QObject):
         self.requestToggleScreen.connect(self._worker.toggle_device_screen)
         self.requestScrcpyShortcut.connect(self._worker.send_scrcpy_shortcut)
         self.requestIcon.connect(self._worker.fetch_icon)
+        self.requestDeviceStatus.connect(self._worker.fetch_device_status)
         
         self._worker.devicesReady.connect(self._on_devices_ready)
         self._worker.packagesReady.connect(self._on_packages_ready)
         self._worker.iconReady.connect(self._on_icon_ready)
+        self._worker.deviceStatusReady.connect(self._on_device_status_ready)
         self._worker.errorOccurred.connect(self._on_worker_error)
         
         self._thread.start()
@@ -121,9 +135,25 @@ class BackendBridge(QObject):
 
     @Slot(list)
     def _on_devices_ready(self, devices):
+        # Add custom names and request status for each device
+        for device in devices:
+            serial = device.get("serial", "")
+            # Add custom name if exists
+            if serial in self._device_names:
+                device["custom_name"] = self._device_names[serial]
+            # Request device status
+            if serial:
+                self.requestDeviceStatus.emit(serial)
+        
         if devices != self._devices:
             self._devices = devices
             self.devicesChanged.emit(self._devices)
+    
+    @Slot(str, dict)
+    def _on_device_status_ready(self, serial, status_info):
+        """Handle device status update."""
+        self._device_status[serial] = status_info
+        self.deviceStatusChanged.emit(serial, status_info)
 
     @Slot(str, list)
     def _on_packages_ready(self, serial, packages):
@@ -279,8 +309,141 @@ class BackendBridge(QObject):
         else:
             self.statusMessage.emit("Failed to launch scrcpy")
 
+    def _load_device_names(self) -> dict:
+        """Load device names from settings."""
+        names_json = self._settings.value("device_names", "{}")
+        try:
+            return json.loads(names_json) if names_json else {}
+        except:
+            return {}
+    
+    def _save_device_names(self):
+        """Save device names to settings."""
+        self._settings.setValue("device_names", json.dumps(self._device_names))
+    
+    def _load_device_groups(self) -> dict:
+        """Load device groups from settings."""
+        groups_json = self._settings.value("device_groups", "{}")
+        try:
+            return json.loads(groups_json) if groups_json else {}
+        except:
+            return {}
+    
+    def _save_device_groups(self):
+        """Save device groups to settings."""
+        self._settings.setValue("device_groups", json.dumps(self._device_groups))
+    
+    @Slot(str, str)
+    def set_device_name(self, serial: str, name: str):
+        """Set custom name for a device."""
+        if serial:
+            self._device_names[serial] = name
+            self._save_device_names()
+            # Update devices list
+            for device in self._devices:
+                if device.get("serial") == serial:
+                    device["custom_name"] = name
+            self.devicesChanged.emit(self._devices)
+    
+    @Slot(str)
+    def get_device_name(self, serial: str) -> str:
+        """Get custom name for a device, or return empty string."""
+        return self._device_names.get(serial, "")
+    
+    @Slot(str, str)
+    def add_device_to_group(self, serial: str, group_name: str):
+        """Add device to a group."""
+        if serial and group_name:
+            if group_name not in self._device_groups:
+                self._device_groups[group_name] = []
+            if serial not in self._device_groups[group_name]:
+                self._device_groups[group_name].append(serial)
+                self._save_device_groups()
+    
+    @Slot(str, str)
+    def remove_device_from_group(self, serial: str, group_name: str):
+        """Remove device from a group."""
+        if group_name in self._device_groups and serial in self._device_groups[group_name]:
+            self._device_groups[group_name].remove(serial)
+            if not self._device_groups[group_name]:
+                del self._device_groups[group_name]
+            self._save_device_groups()
+    
+    def get_device_groups(self) -> dict:
+        """Get all device groups."""
+        return self._device_groups.copy()
+    
+    def get_devices_in_group(self, group_name: str) -> list:
+        """Get list of device serials in a group."""
+        return self._device_groups.get(group_name, []).copy()
+    
+    @Slot(str, result=dict)
+    def get_device_status(self, serial: str) -> dict:
+        """Get cached device status."""
+        status = self._device_status.get(serial, {})
+        # Ensure all values are properly typed for QML
+        result = {}
+        if status:
+            if "battery_level" in status and status["battery_level"] is not None:
+                result["battery_level"] = status["battery_level"]
+            if "battery_status" in status and status["battery_status"]:
+                result["battery_status"] = status["battery_status"]
+            if "temperature" in status and status["temperature"] is not None:
+                result["temperature"] = status["temperature"]
+            if "storage" in status and status["storage"]:
+                result["storage"] = status["storage"]
+            if "network_type" in status and status["network_type"]:
+                result["network_type"] = status["network_type"]
+        return result
+    
+    @Slot(str, "QVariantList")
+    def launch_app_on_multiple_devices(self, package_name: str, device_serials):
+        """Launch an app on multiple devices simultaneously."""
+        if not package_name or not device_serials:
+            return
+        
+        # Convert QVariantList to Python list
+        serials_list = []
+        for item in device_serials:
+            if item:
+                serials_list.append(str(item))
+        
+        if not serials_list:
+            return
+        
+        for serial in serials_list:
+            if serial:
+                width, height, density = self._get_display_params(serial, self._launch_mode)
+                profile_flags = get_profile_flags(self._current_profile)
+                
+                self._scrcpy.launch_app(
+                    serial,
+                    package_name,
+                    width=width,
+                    height=height,
+                    dpi=density,
+                    turn_screen_off=self._launch_with_screen_off,
+                    forward_audio=self._audio_forwarding,
+                    extra_flags=profile_flags
+                )
+        
+        self.statusMessage.emit(f"Launched {package_name} on {len(serials_list)} device(s)")
+    
     def cleanup(self):
         """Stops the worker thread gracefully."""
+        # Stop worker operations immediately
+        if self._worker:
+            self._worker.stop()
+        
+        # Stop timer
+        if self._timer:
+            self._timer.stop()
+        
+        # Quit thread and wait with timeout
         if self._thread.isRunning():
             self._thread.quit()
-            self._thread.wait()
+            # Wait max 1 second for thread to finish
+            if not self._thread.wait(1000):
+                # Force terminate if it doesn't stop
+                self._thread.terminate()
+                self._thread.wait(500)

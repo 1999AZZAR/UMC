@@ -1,5 +1,6 @@
 import sys
 import os
+import signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtCore import QUrl
@@ -11,6 +12,14 @@ def main():
 
     # Create the bridge
     bridge = BackendBridge()
+    
+    # Handle SIGINT (Ctrl+C) for quick shutdown
+    def signal_handler(sig, frame):
+        bridge.cleanup()
+        app.quit()
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
     
     # Expose bridge to QML context
     engine.rootContext().setContextProperty("bridge", bridge)

@@ -1,10 +1,17 @@
 umc (1.0.4-4) unstable; urgency=medium
 
   * Feature: Add app icon display - fetches and displays actual app icons from Android devices.
-  * Feature: Implement fuzzy search algorithm for improved app discovery.
+  * Feature: Implement fuzzy search algorithm for improved app discovery with relevance scoring.
+  * Feature: Add device status indicators - battery level, network type, temperature, and storage information.
+  * Feature: Implement device naming/labeling system with persistent custom names.
+  * Feature: Add batch app launch - launch apps on multiple devices simultaneously.
+  * Feature: Add expandable device cards with detailed status information.
   * Performance: Optimize app list loading - removed blocking operations for faster startup.
   * Performance: Implement lazy icon loading - icons fetch in background without blocking UI.
+  * Performance: Reduce icon fetch timeout and make operations cancellable for quick shutdown.
   * Fix: Resolve QML binding loop warnings in main UI.
+  * Fix: Add proper null checks for device status properties to prevent QML errors.
+  * Fix: Improve cleanup process with timeout-based thread termination.
 
  -- Unified Mobile Controller Team <umc@project.local>  Sat, 03 Jan 2026 12:00:00 +0000
 

@@ -13,6 +13,7 @@ class ADBWorker(QObject):
     devicesReady = Signal(list)
     packagesReady = Signal(str, list)
     iconReady = Signal(str, str)  # package_name, icon_path
+    deviceStatusReady = Signal(str, dict)  # serial, status_info
     errorOccurred = Signal(str)
     
     def __init__(self):
@@ -20,6 +21,7 @@ class ADBWorker(QObject):
         self.adb_handler = ADBHandler()
         self.adb_path = self.adb_handler.adb_path
         self.mock_mode = self.adb_handler.mock_mode
+        self._should_stop = False  # Flag to stop operations quickly
         
         # Set up icon cache directory
         cache_dir = QStandardPaths.writableLocation(QStandardPaths.CacheLocation)
@@ -31,6 +33,19 @@ class ADBWorker(QObject):
         """Fetches the list of connected devices."""
         devices = self.adb_handler.get_devices()
         self.devicesReady.emit(devices)
+    
+    @Slot(str)
+    def fetch_device_status(self, serial: str):
+        """Fetches device status information (battery, temperature, storage, etc.)."""
+        if not serial or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            status_info = self.adb_handler.get_device_status_info(serial)
+            self.deviceStatusReady.emit(serial, status_info)
+        except Exception as e:
+            # Silently fail - status fetching is optional
+            pass
 
     @Slot(str)
     def fetch_packages(self, serial: str):
@@ -162,21 +177,28 @@ class ADBWorker(QObject):
     @Slot(str, str)
     def fetch_icon(self, serial: str, package_name: str):
         """Fetches icon for a specific package in background (non-blocking, optional)."""
-        if self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
             return
         
         # Check cache first - if exists, return immediately
         cache_file = os.path.join(self.icon_cache_dir, f"{package_name}.png")
         if os.path.exists(cache_file):
-            self.iconReady.emit(package_name, cache_file)
+            if not self._should_stop:
+                self.iconReady.emit(package_name, cache_file)
             return
         
         # Only fetch if not in cache, with shorter timeout to prevent blocking
         try:
-            # Use shorter timeout (5 seconds) to prevent hanging
-            icon_path = self.adb_handler.get_app_icon_path(serial, package_name, self.icon_cache_dir, timeout=5)
-            if icon_path:
+            if self._should_stop:
+                return
+            # Use shorter timeout (3 seconds) to prevent hanging
+            icon_path = self.adb_handler.get_app_icon_path(serial, package_name, self.icon_cache_dir, timeout=3)
+            if icon_path and not self._should_stop:
                 self.iconReady.emit(package_name, icon_path)
-        except (subprocess.TimeoutExpired, Exception) as e:
+        except (subprocess.TimeoutExpired, KeyboardInterrupt, Exception) as e:
             # Silently fail - icon fetching is optional and shouldn't block app list
             pass
+    
+    def stop(self):
+        """Stop all operations immediately."""
+        self._should_stop = True

@@ -251,7 +251,16 @@ class ADBHandler:
             temp_apk = os.path.join(cache_dir, f"{package_name}.apk")
             try:
                 pull_cmd = [self.adb_path, "-s", serial, "pull", apk_path, temp_apk]
-                subprocess.run(pull_cmd, capture_output=True, check=True, timeout=timeout)
+                # Use Popen so we can kill it if needed
+                process = subprocess.Popen(pull_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    process.wait(timeout=timeout)
+                    if process.returncode != 0:
+                        return None
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                    return None
                 
                 # Extract icon from APK using zipfile
                 import zipfile
@@ -321,3 +330,125 @@ class ADBHandler:
             print(f"Error fetching icon for {package_name}: {e}")
         
         return None
+
+    def get_battery_level(self, serial: str) -> Optional[int]:
+        """Gets battery level percentage (0-100)."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return 85  # Mock value
+        
+        try:
+            cmd = [self.adb_path, "-s", serial, "shell", "dumpsys", "battery"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=5)
+            
+            for line in result.stdout.split('\n'):
+                if 'level:' in line.lower():
+                    try:
+                        level = int(line.split(':')[1].strip())
+                        return level
+                    except (ValueError, IndexError):
+                        pass
+        except Exception as e:
+            print(f"Error fetching battery for {serial}: {e}")
+        
+        return None
+
+    def get_battery_status(self, serial: str) -> Optional[str]:
+        """Gets battery status (charging, discharging, full, etc.)."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return "discharging"
+        
+        try:
+            cmd = [self.adb_path, "-s", serial, "shell", "dumpsys", "battery"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=5)
+            
+            for line in result.stdout.split('\n'):
+                if 'status:' in line.lower():
+                    status_code = line.split(':')[1].strip()
+                    # Status codes: 1=unknown, 2=charging, 3=discharging, 4=not charging, 5=full
+                    status_map = {
+                        "1": "unknown",
+                        "2": "charging",
+                        "3": "discharging",
+                        "4": "not charging",
+                        "5": "full"
+                    }
+                    return status_map.get(status_code, "unknown")
+        except Exception as e:
+            print(f"Error fetching battery status for {serial}: {e}")
+        
+        return None
+
+    def get_device_temperature(self, serial: str) -> Optional[float]:
+        """Gets device temperature in Celsius."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return 35.0  # Mock value
+        
+        try:
+            # Try to get battery temperature first (most reliable)
+            cmd = [self.adb_path, "-s", serial, "shell", "dumpsys", "battery"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=5)
+            
+            for line in result.stdout.split('\n'):
+                if 'temperature:' in line.lower():
+                    try:
+                        temp = int(line.split(':')[1].strip())
+                        # Battery temperature is in tenths of a degree Celsius
+                        return temp / 10.0
+                    except (ValueError, IndexError):
+                        pass
+        except Exception as e:
+            print(f"Error fetching temperature for {serial}: {e}")
+        
+        return None
+
+    def get_storage_info(self, serial: str) -> Optional[Dict[str, int]]:
+        """Gets storage information (total, used, free in MB)."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return {"total": 128000, "used": 64000, "free": 64000}
+        
+        try:
+            cmd = [self.adb_path, "-s", serial, "shell", "df", "/data"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=5)
+            
+            # Parse df output
+            # Format: Filesystem      1K-blocks    Used Available Use% Mounted on
+            lines = result.stdout.strip().split('\n')
+            if len(lines) >= 2:
+                parts = lines[1].split()
+                if len(parts) >= 4:
+                    try:
+                        total_kb = int(parts[1])
+                        used_kb = int(parts[2])
+                        free_kb = int(parts[3])
+                        
+                        return {
+                            "total": total_kb // 1024,  # Convert to MB
+                            "used": used_kb // 1024,
+                            "free": free_kb // 1024
+                        }
+                    except (ValueError, IndexError):
+                        pass
+        except Exception as e:
+            print(f"Error fetching storage for {serial}: {e}")
+        
+        return None
+
+    def get_network_type(self, serial: str) -> Optional[str]:
+        """Gets network connection type (usb, wifi, etc.)."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return "usb" if "MOCK" in serial else "wifi"
+        
+        # Check if serial contains IP address (wifi) or not (usb)
+        if ":" in serial and not serial.startswith("MOCK"):
+            return "wifi"
+        return "usb"
+
+    def get_device_status_info(self, serial: str) -> Dict[str, any]:
+        """Gets all device status information at once."""
+        return {
+            "battery_level": self.get_battery_level(serial),
+            "battery_status": self.get_battery_status(serial),
+            "temperature": self.get_device_temperature(serial),
+            "storage": self.get_storage_info(serial),
+            "network_type": self.get_network_type(serial)
+        }
