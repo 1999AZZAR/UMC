@@ -7,6 +7,7 @@ class BackendBridge(QObject):
     # Signals
     devicesChanged = Signal(list, arguments=['devices'])
     packagesChanged = Signal(list, arguments=['packages'])
+    iconReady = Signal(str, str, arguments=['pkg', 'iconPath'])  # pkg, iconPath
     statusMessage = Signal(str, arguments=['message'])
     launchModeChanged = Signal(str, arguments=['mode'])
     launchWithScreenOffChanged = Signal(bool, arguments=['enabled'])
@@ -19,6 +20,7 @@ class BackendBridge(QObject):
     requestPackages = Signal(str)
     requestToggleScreen = Signal(str)
     requestScrcpyShortcut = Signal(str, str)
+    requestIcon = Signal(str, str)  # serial, package_name
 
     def __init__(self):
         super().__init__()
@@ -42,9 +44,11 @@ class BackendBridge(QObject):
         self.requestPackages.connect(self._worker.fetch_packages)
         self.requestToggleScreen.connect(self._worker.toggle_device_screen)
         self.requestScrcpyShortcut.connect(self._worker.send_scrcpy_shortcut)
+        self.requestIcon.connect(self._worker.fetch_icon)
         
         self._worker.devicesReady.connect(self._on_devices_ready)
         self._worker.packagesReady.connect(self._on_packages_ready)
+        self._worker.iconReady.connect(self._on_icon_ready)
         self._worker.errorOccurred.connect(self._on_worker_error)
         
         self._thread.start()
@@ -130,6 +134,33 @@ class BackendBridge(QObject):
     @Slot(str)
     def _on_worker_error(self, message):
         self.statusMessage.emit(f"Error: {message}")
+    
+    @Slot(str, str)
+    def _on_icon_ready(self, package_name, icon_path):
+        """Update icon for a package in the packages list."""
+        for i, app in enumerate(self._packages):
+            if app.get("package") == package_name:
+                # Update the icon in the list
+                updated_app = app.copy()
+                updated_app["icon"] = icon_path
+                self._packages[i] = updated_app
+                # Emit signal to update UI
+                self.packagesChanged.emit(self._packages)
+                break
+    
+    @Slot(str)
+    def fetch_icon_for_package(self, package_name):
+        """Request icon fetch for a specific package (non-blocking)."""
+        if self._current_device_serial and package_name:
+            # Emit in a way that doesn't block
+            self.requestIcon.emit(self._current_device_serial, package_name)
+    
+    @Slot(str)
+    def fetch_label_for_package(self, package_name):
+        """Request proper label fetch for a specific package (non-blocking)."""
+        if self._current_device_serial and package_name:
+            # Could add label fetching in background if needed
+            pass
 
     @Slot(str)
     def select_device(self, serial):

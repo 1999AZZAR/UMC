@@ -50,7 +50,8 @@ ApplicationWindow {
                     Rectangle {
                         visible: statusText.text !== ""
                         height: 32
-                        width: statusText.width + 30
+                        implicitWidth: statusText.implicitWidth + 30
+                        width: implicitWidth
                         radius: 16
                         color: Style.surfaceLight
                         

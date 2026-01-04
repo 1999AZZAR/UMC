@@ -11,21 +11,87 @@ Item {
 
     onFullPackageListChanged: updateFilter()
 
+    // Fuzzy search function - calculates similarity score
+    function fuzzyMatch(query, text) {
+        if (!query || !text) return 0
+        
+        var queryLower = query.toLowerCase()
+        var textLower = text.toLowerCase()
+        
+        // Exact match gets highest score
+        if (textLower === queryLower) return 100
+        if (textLower.indexOf(queryLower) === 0) return 90  // Starts with
+        if (textLower.indexOf(queryLower) !== -1) return 70  // Contains
+        
+        // Fuzzy matching: check if all query characters appear in order
+        var queryIndex = 0
+        var score = 0
+        var consecutiveMatches = 0
+        var maxConsecutive = 0
+        
+        for (var i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
+            if (textLower[i] === queryLower[queryIndex]) {
+                score += 10
+                consecutiveMatches++
+                maxConsecutive = Math.max(maxConsecutive, consecutiveMatches)
+                queryIndex++
+            } else {
+                consecutiveMatches = 0
+            }
+        }
+        
+        // Bonus for consecutive matches
+        score += maxConsecutive * 5
+        
+        // If all query characters were found, add bonus
+        if (queryIndex === queryLower.length) {
+            score += 20
+        } else {
+            // Penalty for missing characters
+            score -= (queryLower.length - queryIndex) * 15
+        }
+        
+        return Math.max(0, Math.min(100, score))
+    }
+
     function updateFilter() {
-        var query = searchField.text.toLowerCase()
+        var query = searchField.text.trim()
         if (query === "") {
             filteredList = fullPackageList
         } else {
+            var queryLower = query.toLowerCase()
             var temp = []
+            var scoredApps = []
+            
             for (var i = 0; i < fullPackageList.length; i++) {
                 var app = fullPackageList[i]
                 var packageName = app.package || app
                 var appName = app.name || app
-                if (packageName.toLowerCase().indexOf(query) !== -1 ||
-                    appName.toLowerCase().indexOf(query) !== -1) {
-                    temp.push(app)
+                
+                // Calculate match scores for both name and package
+                var nameScore = fuzzyMatch(queryLower, appName)
+                var packageScore = fuzzyMatch(queryLower, packageName)
+                var maxScore = Math.max(nameScore, packageScore)
+                
+                // Only include if score is above threshold
+                if (maxScore > 20) {
+                    scoredApps.push({
+                        app: app,
+                        score: maxScore
+                    })
                 }
             }
+            
+            // Sort by score (descending)
+            scoredApps.sort(function(a, b) {
+                return b.score - a.score
+            })
+            
+            // Extract apps in sorted order
+            for (var j = 0; j < scoredApps.length; j++) {
+                temp.push(scoredApps[j].app)
+            }
+            
             filteredList = temp
         }
     }
@@ -138,10 +204,46 @@ Item {
                             width: 56
                             height: 56
                             radius: 18
-                            color: Style.surfaceLight // Flat color instead of gradient
+                            color: Style.surfaceLight
                             border.color: Style.surfaceHighlight
                             border.width: 1
+                            clip: true
 
+                            // App Icon Image
+                            Image {
+                                id: appIconImage
+                                anchors.fill: parent
+                                anchors.margins: 2
+                                property string iconSource: modelData.icon ? "file://" + modelData.icon : ""
+                                source: iconSource
+                                fillMode: Image.PreserveAspectFit
+                                visible: iconSource !== "" && status === Image.Ready
+                                smooth: true
+                                antialiasing: true
+                                asynchronous: true
+                                
+                                // Request icon fetch if not available and item is visible
+                                Component.onCompleted: {
+                                    if (!modelData.icon && bridge) {
+                                        // Request icon fetch in background
+                                        bridge.fetch_icon_for_package(modelData.package || modelData)
+                                    }
+                                }
+                            }
+                            
+                            // Listen for icon updates
+                            Connections {
+                                target: bridge
+                                function onIconReady(pkg, iconPath) {
+                                    var currentPackage = modelData.package || modelData
+                                    if (currentPackage === pkg) {
+                                        // Update image source
+                                        appIconImage.iconSource = "file://" + iconPath
+                                    }
+                                }
+                            }
+
+                            // Fallback: First letter if no icon
                             Text {
                                 anchors.centerIn: parent
                                 text: (modelData.name || modelData.package || modelData).substring(0, 1).toUpperCase()
@@ -149,6 +251,7 @@ Item {
                                 font.bold: true
                                 font.pixelSize: 24
                                 font.family: Style.headerFont.family
+                                visible: !appIconImage.visible || appIconImage.status !== Image.Ready
                             }
                         }
                         

@@ -233,8 +233,8 @@ Rectangle {
                                 
                                 MenuSeparator {
                                     contentItem: Rectangle {
-                                        implicitWidth: parent.width
-                                        implicitHeight: 1
+                                        width: 180
+                                        height: 1
                                         color: Style.divider
                                     }
                                 }

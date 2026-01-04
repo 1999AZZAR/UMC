@@ -1,8 +1,9 @@
 import subprocess
 import shutil
 import re
+import os
 from typing import List, Dict, Optional, Tuple
-from PySide6.QtCore import QObject, Signal, Slot, QThread
+from PySide6.QtCore import QObject, Signal, Slot, QThread, QStandardPaths
 from .adb_handler import ADBHandler
 
 class ADBWorker(QObject):
@@ -11,6 +12,7 @@ class ADBWorker(QObject):
     """
     devicesReady = Signal(list)
     packagesReady = Signal(str, list)
+    iconReady = Signal(str, str)  # package_name, icon_path
     errorOccurred = Signal(str)
     
     def __init__(self):
@@ -18,6 +20,11 @@ class ADBWorker(QObject):
         self.adb_handler = ADBHandler()
         self.adb_path = self.adb_handler.adb_path
         self.mock_mode = self.adb_handler.mock_mode
+        
+        # Set up icon cache directory
+        cache_dir = QStandardPaths.writableLocation(QStandardPaths.CacheLocation)
+        self.icon_cache_dir = os.path.join(cache_dir, "umc", "icons")
+        os.makedirs(self.icon_cache_dir, exist_ok=True)
 
     @Slot()
     def fetch_devices(self):
@@ -29,13 +36,14 @@ class ADBWorker(QObject):
     def fetch_packages(self, serial: str):
         """Fetches all launchable packages (users apps + system apps with launcher activity)."""
         if self.mock_mode or serial.startswith("MOCK"):
-            self.packagesReady.emit(serial, [
-                {"package": "com.android.chrome", "name": "Chrome"},
-                {"package": "com.google.android.youtube", "name": "YouTube"},
-                {"package": "com.whatsapp", "name": "WhatsApp"},
-                {"package": "com.instagram.android", "name": "Instagram"},
-                {"package": "com.android.settings", "name": "Settings"}
-            ])
+            mock_apps = [
+                {"package": "com.android.chrome", "name": "Chrome", "icon": None},
+                {"package": "com.google.android.youtube", "name": "YouTube", "icon": None},
+                {"package": "com.whatsapp", "name": "WhatsApp", "icon": None},
+                {"package": "com.instagram.android", "name": "Instagram", "icon": None},
+                {"package": "com.android.settings", "name": "Settings", "icon": None}
+            ]
+            self.packagesReady.emit(serial, mock_apps)
             return
 
         try:
@@ -64,16 +72,27 @@ class ADBWorker(QObject):
                 if "/" in line:
                     parts = line.split("/")
                     package_name = parts[0]
-                    # activity_name = parts[1] # Not used for now, scrcpy just needs package usually
                     
                     if package_name not in seen_packages:
-                        # Create a friendly name
-                        friendly_name = package_name
+                        # Use fast heuristic for app name (don't call pm dump - too slow)
+                        # Icons and proper labels can be fetched lazily later
+                        app_label = package_name
                         if "." in package_name:
                             # Use the last part of the package name as a heuristic for the name
-                            friendly_name = package_name.split(".")[-1].capitalize()
+                            app_label = package_name.split(".")[-1].capitalize()
                         
-                        apps.append({"package": package_name, "name": friendly_name})
+                        # Only check if icon exists in cache (lazy loading)
+                        # Don't fetch icons synchronously - too slow for many apps
+                        icon_path = None
+                        cache_file = os.path.join(self.icon_cache_dir, f"{package_name}.png")
+                        if os.path.exists(cache_file):
+                            icon_path = cache_file
+                        
+                        apps.append({
+                            "package": package_name,
+                            "name": app_label,
+                            "icon": icon_path if icon_path else None
+                        })
                         seen_packages.add(package_name)
 
             apps.sort(key=lambda x: x["name"].lower())
@@ -139,3 +158,25 @@ class ADBWorker(QObject):
         width, height = self.adb_handler.get_device_resolution(serial)
         density = self.adb_handler.get_device_density(serial)
         return width, height, density
+    
+    @Slot(str, str)
+    def fetch_icon(self, serial: str, package_name: str):
+        """Fetches icon for a specific package in background (non-blocking, optional)."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        # Check cache first - if exists, return immediately
+        cache_file = os.path.join(self.icon_cache_dir, f"{package_name}.png")
+        if os.path.exists(cache_file):
+            self.iconReady.emit(package_name, cache_file)
+            return
+        
+        # Only fetch if not in cache, with shorter timeout to prevent blocking
+        try:
+            # Use shorter timeout (5 seconds) to prevent hanging
+            icon_path = self.adb_handler.get_app_icon_path(serial, package_name, self.icon_cache_dir, timeout=5)
+            if icon_path:
+                self.iconReady.emit(package_name, icon_path)
+        except (subprocess.TimeoutExpired, Exception) as e:
+            # Silently fail - icon fetching is optional and shouldn't block app list
+            pass
