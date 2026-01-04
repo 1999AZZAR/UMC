@@ -126,11 +126,15 @@ Rectangle {
                 
                 // Load device status
                 Component.onCompleted: {
-                    if (bridge && modelData.serial) {
-                        var status = bridge.get_device_status(modelData.serial)
-                        if (status) {
-                            deviceStatus = status
+                    try {
+                        if (bridge && modelData.serial) {
+                            var status = bridge.get_device_status(modelData.serial)
+                            if (status) {
+                                deviceStatus = status
+                            }
                         }
+                    } catch (e) {
+                        // Silently fail - device may not be ready
                     }
                 }
                 
@@ -781,6 +785,477 @@ Rectangle {
                         function onFileSelected(filePath) {
                             if (filePath && modelData.serial) {
                                 bridge.push_file_to_device(modelData.serial, filePath)
+                            }
+                        }
+                    }
+                    
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: Style.divider
+                    }
+                    
+                    // Screenshot button
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        
+                        Text {
+                            text: "Screenshot:"
+                            font.pixelSize: 10
+                            color: Style.textSecondary
+                        }
+                        
+                        Item { Layout.fillWidth: true }
+                        
+                        Rectangle {
+                            width: 24
+                            height: 24
+                            radius: 4
+                            color: screenshotBtnArea.containsMouse ? Style.background : "transparent"
+                            
+                            Icon {
+                                anchors.centerIn: parent
+                                name: "screenshot"
+                                size: 14
+                                color: Style.textSecondary
+                            }
+                            
+                            MouseArea {
+                                id: screenshotBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (bridge) {
+                                        bridge.capture_screenshot(modelData.serial)
+                                    }
+                                }
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: "Capture Screenshot"
+                                ToolTip.delay: 500
+                            }
+                        }
+                    }
+                    
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: Style.divider
+                    }
+                    
+                    // Device Controls Section
+                    Text {
+                        Layout.fillWidth: true
+                        text: "DEVICE CONTROLS"
+                        font.pixelSize: 9
+                        font.weight: Font.DemiBold
+                        color: Style.textSecondary
+                    }
+                    
+                    // Volume Control
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            
+                            Icon {
+                                name: "volume"
+                                size: 12
+                                color: Style.textSecondary
+                            }
+                            
+                            Text {
+                                text: "Volume (Media):"
+                                font.pixelSize: 10
+                                color: Style.textSecondary
+                            }
+                            
+                            Item { Layout.fillWidth: true }
+                            
+                            Text {
+                                id: volumeText
+                                text: "0"
+                                font.pixelSize: 10
+                                color: Style.textPrimary
+                                width: 20
+                            }
+                        }
+                        
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            
+                            Icon {
+                                name: "volume_down"
+                                size: 10
+                                color: Style.textSecondary
+                            }
+                            
+                            Slider {
+                                id: volumeSlider
+                                Layout.fillWidth: true
+                                from: 0
+                                to: 15
+                                value: 0
+                                
+                                onValueChanged: {
+                                    volumeText.text = Math.round(value)
+                                    if (bridge && modelData.serial) {
+                                        bridge.set_volume(modelData.serial, "music", Math.round(value))
+                                    }
+                                }
+                                
+                                Component.onCompleted: {
+                                    try {
+                                        if (bridge && modelData.serial) {
+                                            var vol = bridge.get_volume(modelData.serial, "music")
+                                            if (vol !== undefined && vol !== null) {
+                                                value = vol
+                                            }
+                                        }
+                                    } catch (e) {
+                                        // Silently fail - device may not be ready
+                                    }
+                                }
+                            }
+                            
+                            Icon {
+                                name: "volume"
+                                size: 10
+                                color: Style.textSecondary
+                            }
+                        }
+                    }
+                    
+                    // Brightness Control
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            
+                            Icon {
+                                name: "brightness"
+                                size: 12
+                                color: Style.textSecondary
+                            }
+                            
+                            Text {
+                                text: "Brightness:"
+                                font.pixelSize: 10
+                                color: Style.textSecondary
+                            }
+                            
+                            Item { Layout.fillWidth: true }
+                            
+                            Text {
+                                id: brightnessText
+                                text: "128"
+                                font.pixelSize: 10
+                                color: Style.textPrimary
+                                width: 30
+                            }
+                        }
+                        
+                        Slider {
+                            id: brightnessSlider
+                            Layout.fillWidth: true
+                            from: 0
+                            to: 255
+                            value: 128
+                            
+                            onValueChanged: {
+                                brightnessText.text = Math.round(value)
+                                if (bridge && modelData.serial) {
+                                    bridge.set_brightness(modelData.serial, Math.round(value))
+                                }
+                            }
+                            
+                            Component.onCompleted: {
+                                try {
+                                    if (bridge && modelData.serial) {
+                                        var bright = bridge.get_brightness(modelData.serial)
+                                        if (bright !== undefined && bright !== null) {
+                                            value = bright
+                                        }
+                                    }
+                                } catch (e) {
+                                    // Silently fail - device may not be ready
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Quick Toggles
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        rowSpacing: 8
+                        columnSpacing: 8
+                        
+                        // Rotation Lock
+                        RowLayout {
+                            spacing: 4
+                            
+                            Icon {
+                                name: "rotation"
+                                size: 12
+                                color: Style.textSecondary
+                            }
+                            
+                            Text {
+                                text: "Rotation Lock:"
+                                font.pixelSize: 10
+                                color: Style.textSecondary
+                            }
+                            
+                            Item { Layout.fillWidth: true }
+                            
+                            Rectangle {
+                                id: rotationToggle
+                                width: 36
+                                height: 20
+                                radius: 10
+                                color: rotationToggle.enabled ? Style.accent : Style.surfaceLight
+                                
+                                property bool enabled: false
+                                
+                                Component.onCompleted: {
+                                    try {
+                                        if (bridge && modelData.serial) {
+                                            var locked = bridge.get_rotation_lock(modelData.serial)
+                                            if (locked !== undefined && locked !== null) {
+                                                enabled = locked
+                                            }
+                                        }
+                                    } catch (e) {
+                                        // Silently fail - device may not be ready
+                                    }
+                                }
+                                
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: rotationToggle.enabled ? parent.width - width - 2 : 2
+                                    width: 16
+                                    height: 16
+                                    radius: 8
+                                    color: "white"
+                                    
+                                    Behavior on x { NumberAnimation { duration: 200 } }
+                                }
+                                
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (bridge && modelData.serial) {
+                                            var newState = !rotationToggle.enabled
+                                            bridge.set_rotation_lock(modelData.serial, newState)
+                                            rotationToggle.enabled = newState
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Airplane Mode
+                        RowLayout {
+                            spacing: 4
+                            
+                            Icon {
+                                name: "airplane"
+                                size: 12
+                                color: Style.textSecondary
+                            }
+                            
+                            Text {
+                                text: "Airplane Mode:"
+                                font.pixelSize: 10
+                                color: Style.textSecondary
+                            }
+                            
+                            Item { Layout.fillWidth: true }
+                            
+                            Rectangle {
+                                id: airplaneToggle
+                                width: 36
+                                height: 20
+                                radius: 10
+                                color: airplaneToggle.enabled ? Style.accent : Style.surfaceLight
+                                
+                                property bool enabled: false
+                                
+                                Component.onCompleted: {
+                                    try {
+                                        if (bridge && modelData.serial) {
+                                            var airplane = bridge.get_airplane_mode(modelData.serial)
+                                            if (airplane !== undefined && airplane !== null) {
+                                                enabled = airplane
+                                            }
+                                        }
+                                    } catch (e) {
+                                        // Silently fail - device may not be ready
+                                    }
+                                }
+                                
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: airplaneToggle.enabled ? parent.width - width - 2 : 2
+                                    width: 16
+                                    height: 16
+                                    radius: 8
+                                    color: "white"
+                                    
+                                    Behavior on x { NumberAnimation { duration: 200 } }
+                                }
+                                
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (bridge && modelData.serial) {
+                                            var newState = !airplaneToggle.enabled
+                                            bridge.set_airplane_mode(modelData.serial, newState)
+                                            airplaneToggle.enabled = newState
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // WiFi
+                        RowLayout {
+                            spacing: 4
+                            
+                            Icon {
+                                name: "wifi"
+                                size: 12
+                                color: Style.textSecondary
+                            }
+                            
+                            Text {
+                                text: "WiFi:"
+                                font.pixelSize: 10
+                                color: Style.textSecondary
+                            }
+                            
+                            Item { Layout.fillWidth: true }
+                            
+                            Rectangle {
+                                id: wifiToggle
+                                width: 36
+                                height: 20
+                                radius: 10
+                                color: wifiToggle.enabled ? Style.accent : Style.surfaceLight
+                                
+                                property bool enabled: true
+                                
+                                Component.onCompleted: {
+                                    try {
+                                        if (bridge && modelData.serial) {
+                                            var wifi = bridge.get_wifi_enabled(modelData.serial)
+                                            if (wifi !== undefined && wifi !== null) {
+                                                enabled = wifi
+                                            }
+                                        }
+                                    } catch (e) {
+                                        // Silently fail - device may not be ready
+                                    }
+                                }
+                                
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: wifiToggle.enabled ? parent.width - width - 2 : 2
+                                    width: 16
+                                    height: 16
+                                    radius: 8
+                                    color: "white"
+                                    
+                                    Behavior on x { NumberAnimation { duration: 200 } }
+                                }
+                                
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (bridge && modelData.serial) {
+                                            var newState = !wifiToggle.enabled
+                                            bridge.set_wifi_enabled(modelData.serial, newState)
+                                            wifiToggle.enabled = newState
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Bluetooth
+                        RowLayout {
+                            spacing: 4
+                            
+                            Icon {
+                                name: "bluetooth"
+                                size: 12
+                                color: Style.textSecondary
+                            }
+                            
+                            Text {
+                                text: "Bluetooth:"
+                                font.pixelSize: 10
+                                color: Style.textSecondary
+                            }
+                            
+                            Item { Layout.fillWidth: true }
+                            
+                            Rectangle {
+                                id: bluetoothToggle
+                                width: 36
+                                height: 20
+                                radius: 10
+                                color: bluetoothToggle.enabled ? Style.accent : Style.surfaceLight
+                                
+                                property bool enabled: false
+                                
+                                Component.onCompleted: {
+                                    try {
+                                        if (bridge && modelData.serial) {
+                                            var bluetooth = bridge.get_bluetooth_enabled(modelData.serial)
+                                            if (bluetooth !== undefined && bluetooth !== null) {
+                                                enabled = bluetooth
+                                            }
+                                        }
+                                    } catch (e) {
+                                        // Silently fail - device may not be ready
+                                    }
+                                }
+                                
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: bluetoothToggle.enabled ? parent.width - width - 2 : 2
+                                    width: 16
+                                    height: 16
+                                    radius: 8
+                                    color: "white"
+                                    
+                                    Behavior on x { NumberAnimation { duration: 200 } }
+                                }
+                                
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (bridge && modelData.serial) {
+                                            var newState = !bluetoothToggle.enabled
+                                            bridge.set_bluetooth_enabled(modelData.serial, newState)
+                                            bluetoothToggle.enabled = newState
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

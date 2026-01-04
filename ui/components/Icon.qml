@@ -248,6 +248,118 @@ Item {
                 ctx.globalAlpha = 1.0;
             }
             else if (root.name === "expand_more") {
+                ctx.beginPath();
+                ctx.moveTo(cx, cy + 2);
+                ctx.lineTo(cx - 4, cy - 2);
+                ctx.lineTo(cx + 4, cy - 2);
+                ctx.fill();
+            }
+            else if (root.name === "screenshot" || root.name === "camera") {
+                // Camera icon
+                ctx.beginPath();
+                ctx.rect(cx - 6, cy - 2, 12, 8);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx, cy - 2, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(cx - 4, cy + 6);
+                ctx.lineTo(cx - 2, cy + 4);
+                ctx.lineTo(cx + 2, cy + 4);
+                ctx.lineTo(cx + 4, cy + 6);
+                ctx.stroke();
+            }
+            else if (root.name === "volume" || root.name === "volume_up") {
+                // Speaker icon
+                ctx.beginPath();
+                ctx.moveTo(cx - 4, cy - 4);
+                ctx.lineTo(cx - 4, cy + 4);
+                ctx.lineTo(cx + 2, cy + 2);
+                ctx.lineTo(cx + 2, cy - 2);
+                ctx.closePath();
+                ctx.fill();
+                // Sound waves
+                ctx.beginPath();
+                ctx.arc(cx + 4, cy, 3, -Math.PI * 0.3, Math.PI * 0.3);
+                ctx.stroke();
+            }
+            else if (root.name === "brightness" || root.name === "light") {
+                // Sun icon
+                ctx.beginPath();
+                ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+                ctx.fill();
+                // Rays
+                for (var i = 0; i < 8; i++) {
+                    var angle = (Math.PI * 2 * i) / 8;
+                    ctx.beginPath();
+                    ctx.moveTo(cx + Math.cos(angle) * 4, cy + Math.sin(angle) * 4);
+                    ctx.lineTo(cx + Math.cos(angle) * 6, cy + Math.sin(angle) * 6);
+                    ctx.stroke();
+                }
+            }
+            else if (root.name === "rotation" || root.name === "rotate") {
+                // Rotation arrows
+                ctx.beginPath();
+                ctx.arc(cx, cy, 5, -Math.PI * 0.3, Math.PI * 0.7);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx + 3, cy - 2);
+                ctx.lineTo(cx + 5, cy - 4);
+                ctx.lineTo(cx + 3, cy - 4);
+                ctx.fill();
+            }
+            else if (root.name === "airplane" || root.name === "flight") {
+                // Airplane icon
+                ctx.beginPath();
+                ctx.moveTo(cx - 4, cy);
+                ctx.lineTo(cx, cy - 3);
+                ctx.lineTo(cx + 4, cy);
+                ctx.lineTo(cx, cy + 1);
+                ctx.closePath();
+                ctx.fill();
+            }
+            else if (root.name === "wifi") {
+                // WiFi waves
+                ctx.beginPath();
+                ctx.arc(cx, cy, 5, -Math.PI * 0.3, Math.PI * 0.3);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx, cy, 3, -Math.PI * 0.3, Math.PI * 0.3);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx, cy, 1, -Math.PI * 0.3, Math.PI * 0.3);
+                ctx.stroke();
+            }
+            else if (root.name === "bluetooth") {
+                // Bluetooth icon
+                ctx.beginPath();
+                ctx.moveTo(cx - 2, cy - 4);
+                ctx.lineTo(cx + 2, cy);
+                ctx.lineTo(cx - 2, cy + 4);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx + 2, cy - 4);
+                ctx.lineTo(cx - 2, cy);
+                ctx.lineTo(cx + 2, cy + 4);
+                ctx.stroke();
+            }
+            else if (root.name === "volume_down") {
+                // Speaker with X
+                ctx.beginPath();
+                ctx.moveTo(cx - 4, cy - 4);
+                ctx.lineTo(cx - 4, cy + 4);
+                ctx.lineTo(cx + 2, cy + 2);
+                ctx.lineTo(cx + 2, cy - 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(cx + 4, cy - 2);
+                ctx.lineTo(cx + 6, cy);
+                ctx.moveTo(cx + 4, cy + 2);
+                ctx.lineTo(cx + 6, cy);
+                ctx.stroke();
+            }
+            else {
                 // Down arrow (chevron)
                 ctx.beginPath();
                 ctx.moveTo(p, cy - 3);

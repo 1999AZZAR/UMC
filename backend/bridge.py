@@ -17,6 +17,8 @@ class BackendBridge(QObject):
     fileTransferComplete = Signal(str, str, bool, arguments=['serial', 'operation', 'success'])
     clipboardChanged = Signal(str, str, arguments=['serial', 'text'])
     fileSelected = Signal(str, arguments=['filePath'])
+    screenshotReady = Signal(str, str, arguments=['serial', 'screenshotPath'])
+    deviceControlChanged = Signal(str, str, arguments=['serial', 'controlType'])
     statusMessage = Signal(str, arguments=['message'])
     launchModeChanged = Signal(str, arguments=['mode'])
     launchWithScreenOffChanged = Signal(bool, arguments=['enabled'])
@@ -33,6 +35,13 @@ class BackendBridge(QObject):
     requestDeviceStatus = Signal(str)  # serial
     requestPushFile = Signal(str, str, str)  # serial, local_path, remote_path
     requestPullFile = Signal(str, str, str)  # serial, remote_path, local_path
+    requestScreenshot = Signal(str)  # serial
+    requestSetVolume = Signal(str, str, int)  # serial, stream, level
+    requestSetBrightness = Signal(str, int)  # serial, level
+    requestSetRotationLock = Signal(str, bool)  # serial, locked
+    requestSetAirplaneMode = Signal(str, bool)  # serial, enabled
+    requestSetWifi = Signal(str, bool)  # serial, enabled
+    requestSetBluetooth = Signal(str, bool)  # serial, enabled
 
     def __init__(self):
         super().__init__()
@@ -87,6 +96,13 @@ class BackendBridge(QObject):
         self.requestScrcpyShortcut.connect(self._worker.send_scrcpy_shortcut)
         self.requestIcon.connect(self._worker.fetch_icon)
         self.requestDeviceStatus.connect(self._worker.fetch_device_status)
+        self.requestScreenshot.connect(self._worker.capture_screenshot)
+        self.requestSetVolume.connect(self._worker.set_volume)
+        self.requestSetBrightness.connect(self._worker.set_brightness)
+        self.requestSetRotationLock.connect(self._worker.set_rotation_lock)
+        self.requestSetAirplaneMode.connect(self._worker.set_airplane_mode)
+        self.requestSetWifi.connect(self._worker.set_wifi_enabled)
+        self.requestSetBluetooth.connect(self._worker.set_bluetooth_enabled)
         
         self._worker.devicesReady.connect(self._on_devices_ready)
         self._worker.packagesReady.connect(self._on_packages_ready)
@@ -95,6 +111,8 @@ class BackendBridge(QObject):
         self._worker.fileTransferProgress.connect(self._on_file_transfer_progress)
         self._worker.fileTransferComplete.connect(self._on_file_transfer_complete)
         self._worker.clipboardChanged.connect(self._on_device_clipboard_changed)
+        self._worker.screenshotReady.connect(self._on_screenshot_ready)
+        self._worker.deviceControlChanged.connect(self._on_device_control_changed)
         self._worker.errorOccurred.connect(self._on_worker_error)
         
         self._thread.start()
@@ -268,6 +286,23 @@ class BackendBridge(QObject):
                 self._add_to_clipboard_history(text)
         except Exception:
             pass  # Silently handle clipboard errors
+    
+    @Slot(str, str)
+    def _on_screenshot_ready(self, serial, screenshot_path):
+        """Handle screenshot capture completion."""
+        try:
+            self.screenshotReady.emit(serial, screenshot_path)
+            self.statusMessage.emit(f"Screenshot saved: {os.path.basename(screenshot_path)}")
+        except Exception:
+            pass
+    
+    @Slot(str, str)
+    def _on_device_control_changed(self, serial, control_type):
+        """Handle device control change."""
+        try:
+            self.deviceControlChanged.emit(serial, control_type)
+        except Exception:
+            pass
     
     def _check_desktop_clipboard(self):
         """Check for desktop clipboard changes and sync to devices."""
@@ -695,8 +730,159 @@ class BackendBridge(QObject):
             self.statusMessage.emit(f"Launched {package_name} on {len(serials_list)} device(s)")
         except Exception:
             pass
+    
+    @Slot(str)
+    def capture_screenshot(self, serial: str):
+        """Capture screenshot from device."""
+        try:
+            if serial:
+                self.requestScreenshot.emit(serial)
         except Exception:
             pass
+    
+    @Slot(str, str, int)
+    def set_volume(self, serial: str, stream: str, level: int):
+        """Set volume for a stream (music, ring, alarm, etc.)."""
+        try:
+            if serial and stream and 0 <= level <= 15:
+                self.requestSetVolume.emit(serial, stream, level)
+        except Exception:
+            pass
+    
+    @Slot(str, str, result=int)
+    def get_volume(self, serial: str, stream: str) -> int:
+        """Get current volume level for a stream."""
+        try:
+            if not serial or not stream:
+                return 0
+            if not self._worker or not hasattr(self._worker, 'adb_handler'):
+                return 0
+            if not self._worker.adb_handler:
+                return 0
+            result = self._worker.adb_handler.get_volume(serial, stream)
+            return result if result is not None else 0
+        except Exception:
+            return 0
+    
+    @Slot(str, int)
+    def set_brightness(self, serial: str, level: int):
+        """Set screen brightness (0-255)."""
+        try:
+            if serial and 0 <= level <= 255:
+                self.requestSetBrightness.emit(serial, level)
+        except Exception:
+            pass
+    
+    @Slot(str, result=int)
+    def get_brightness(self, serial: str) -> int:
+        """Get current screen brightness."""
+        try:
+            if not serial:
+                return 128
+            if not self._worker or not hasattr(self._worker, 'adb_handler'):
+                return 128
+            if not self._worker.adb_handler:
+                return 128
+            result = self._worker.adb_handler.get_brightness(serial)
+            return result if result is not None else 128
+        except Exception:
+            return 128
+    
+    @Slot(str, bool)
+    def set_rotation_lock(self, serial: str, locked: bool):
+        """Set rotation lock."""
+        try:
+            if serial:
+                self.requestSetRotationLock.emit(serial, locked)
+        except Exception:
+            pass
+    
+    @Slot(str, result=bool)
+    def get_rotation_lock(self, serial: str) -> bool:
+        """Get current rotation lock status."""
+        try:
+            if not serial:
+                return False
+            if not self._worker or not hasattr(self._worker, 'adb_handler'):
+                return False
+            if not self._worker.adb_handler:
+                return False
+            result = self._worker.adb_handler.get_rotation_lock(serial)
+            return result if result is not None else False
+        except Exception:
+            return False
+    
+    @Slot(str, bool)
+    def set_airplane_mode(self, serial: str, enabled: bool):
+        """Set airplane mode."""
+        try:
+            if serial:
+                self.requestSetAirplaneMode.emit(serial, enabled)
+        except Exception:
+            pass
+    
+    @Slot(str, result=bool)
+    def get_airplane_mode(self, serial: str) -> bool:
+        """Get current airplane mode status."""
+        try:
+            if not serial:
+                return False
+            if not self._worker or not hasattr(self._worker, 'adb_handler'):
+                return False
+            if not self._worker.adb_handler:
+                return False
+            result = self._worker.adb_handler.get_airplane_mode(serial)
+            return result if result is not None else False
+        except Exception:
+            return False
+    
+    @Slot(str, bool)
+    def set_wifi_enabled(self, serial: str, enabled: bool):
+        """Enable/disable WiFi."""
+        try:
+            if serial:
+                self.requestSetWifi.emit(serial, enabled)
+        except Exception:
+            pass
+    
+    @Slot(str, result=bool)
+    def get_wifi_enabled(self, serial: str) -> bool:
+        """Get current WiFi status."""
+        try:
+            if not serial:
+                return True
+            if not self._worker or not hasattr(self._worker, 'adb_handler'):
+                return True
+            if not self._worker.adb_handler:
+                return True
+            result = self._worker.adb_handler.get_wifi_enabled(serial)
+            return result if result is not None else True
+        except Exception:
+            return True
+    
+    @Slot(str, bool)
+    def set_bluetooth_enabled(self, serial: str, enabled: bool):
+        """Enable/disable Bluetooth."""
+        try:
+            if serial:
+                self.requestSetBluetooth.emit(serial, enabled)
+        except Exception:
+            pass
+    
+    @Slot(str, result=bool)
+    def get_bluetooth_enabled(self, serial: str) -> bool:
+        """Get current Bluetooth status."""
+        try:
+            if not serial:
+                return False
+            if not self._worker or not hasattr(self._worker, 'adb_handler'):
+                return False
+            if not self._worker.adb_handler:
+                return False
+            result = self._worker.adb_handler.get_bluetooth_enabled(serial)
+            return result if result is not None else False
+        except Exception:
+            return False
     
     def cleanup(self):
         """Stops the worker thread gracefully."""

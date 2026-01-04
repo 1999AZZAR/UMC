@@ -17,6 +17,8 @@ class ADBWorker(QObject):
     fileTransferProgress = Signal(str, str, int, arguments=['serial', 'operation', 'progress'])  # serial, operation (push/pull), progress 0-100
     fileTransferComplete = Signal(str, str, bool, arguments=['serial', 'operation', 'success'])  # serial, operation, success
     clipboardChanged = Signal(str, str, arguments=['serial', 'text'])  # serial, clipboard_text
+    screenshotReady = Signal(str, str, arguments=['serial', 'screenshotPath'])  # serial, screenshot_path
+    deviceControlChanged = Signal(str, str, arguments=['serial', 'controlType'])  # serial, control_type (volume, brightness, etc.)
     errorOccurred = Signal(str)
     
     def __init__(self):
@@ -30,6 +32,10 @@ class ADBWorker(QObject):
         cache_dir = QStandardPaths.writableLocation(QStandardPaths.CacheLocation)
         self.icon_cache_dir = os.path.join(cache_dir, "umc", "icons")
         os.makedirs(self.icon_cache_dir, exist_ok=True)
+        
+        # Set up screenshot directory
+        self.screenshot_dir = os.path.join(cache_dir, "umc", "screenshots")
+        os.makedirs(self.screenshot_dir, exist_ok=True)
 
     @Slot()
     def fetch_devices(self):
@@ -258,6 +264,115 @@ class ADBWorker(QObject):
             self.adb_handler.set_clipboard(serial, text)
         except Exception as e:
             pass  # Silently fail
+    
+    @Slot(str)
+    def capture_screenshot(self, serial: str):
+        """Capture screenshot from device."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            from datetime import datetime
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"screenshot_{serial}_{timestamp}.png"
+            save_path = os.path.join(self.screenshot_dir, filename)
+            
+            success = self.adb_handler.capture_screenshot(serial, save_path)
+            if success:
+                self.screenshotReady.emit(serial, save_path)
+            else:
+                self.errorOccurred.emit(f"Failed to capture screenshot from {serial}")
+        except Exception as e:
+            self.errorOccurred.emit(f"Screenshot error: {str(e)}")
+    
+    @Slot(str, str, int)
+    def set_volume(self, serial: str, stream: str, level: int):
+        """Set volume for a stream."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            success = self.adb_handler.set_volume(serial, stream, level)
+            if success:
+                self.deviceControlChanged.emit(serial, f"volume_{stream}")
+            else:
+                self.errorOccurred.emit(f"Volume control failed - may require root or special permissions")
+        except Exception as e:
+            self.errorOccurred.emit(f"Volume control error: {str(e)}")
+    
+    @Slot(str, int)
+    def set_brightness(self, serial: str, level: int):
+        """Set screen brightness."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            success = self.adb_handler.set_brightness(serial, level)
+            if success:
+                self.deviceControlChanged.emit(serial, "brightness")
+            else:
+                self.errorOccurred.emit(f"Brightness control failed - may require root or WRITE_SETTINGS permission")
+        except Exception as e:
+            self.errorOccurred.emit(f"Brightness control error: {str(e)}")
+    
+    @Slot(str, bool)
+    def set_rotation_lock(self, serial: str, locked: bool):
+        """Set rotation lock."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            success = self.adb_handler.set_rotation_lock(serial, locked)
+            if success:
+                self.deviceControlChanged.emit(serial, "rotation")
+            else:
+                self.errorOccurred.emit(f"Rotation lock failed - may require WRITE_SETTINGS permission")
+        except Exception as e:
+            self.errorOccurred.emit(f"Rotation lock error: {str(e)}")
+    
+    @Slot(str, bool)
+    def set_airplane_mode(self, serial: str, enabled: bool):
+        """Set airplane mode."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            success = self.adb_handler.set_airplane_mode(serial, enabled)
+            if success:
+                self.deviceControlChanged.emit(serial, "airplane_mode")
+        except Exception as e:
+            self.errorOccurred.emit(f"Airplane mode error: {str(e)}")
+    
+    @Slot(str, bool)
+    def set_wifi_enabled(self, serial: str, enabled: bool):
+        """Enable/disable WiFi."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            success = self.adb_handler.set_wifi_enabled(serial, enabled)
+            if success:
+                self.deviceControlChanged.emit(serial, "wifi")
+            else:
+                self.errorOccurred.emit(f"WiFi control failed - may require root access")
+        except Exception as e:
+            self.errorOccurred.emit(f"WiFi control error: {str(e)}")
+    
+    @Slot(str, bool)
+    def set_bluetooth_enabled(self, serial: str, enabled: bool):
+        """Enable/disable Bluetooth."""
+        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+            return
+        
+        try:
+            success = self.adb_handler.set_bluetooth_enabled(serial, enabled)
+            if success:
+                self.deviceControlChanged.emit(serial, "bluetooth")
+            else:
+                self.errorOccurred.emit(f"Bluetooth control failed - may require root access")
+        except Exception as e:
+            self.errorOccurred.emit(f"Bluetooth control error: {str(e)}")
     
     def stop(self):
         """Stop all operations immediately."""

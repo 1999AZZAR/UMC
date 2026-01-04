@@ -580,3 +580,395 @@ class ADBHandler:
             # Clipboard setting requires special permissions or apps
             # Return False to indicate it may not have worked
             return False
+    
+    def capture_screenshot(self, serial: str, save_path: str) -> bool:
+        """Capture screenshot from device and save to local path."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            # Create a mock screenshot file
+            try:
+                with open(save_path, 'wb') as f:
+                    f.write(b'Mock screenshot data')
+                return True
+            except Exception:
+                return False
+        
+        try:
+            # Use screencap command and pipe to file
+            cmd = [self.adb_path, "-s", serial, "shell", "screencap", "-p"]
+            result = subprocess.run(cmd, capture_output=True, check=True, timeout=10)
+            
+            # Write the PNG data to file
+            with open(save_path, 'wb') as f:
+                f.write(result.stdout)
+            return True
+        except Exception as e:
+            print(f"Error capturing screenshot from {serial}: {e}")
+            return False
+    
+    def set_volume(self, serial: str, stream: str, level: int) -> bool:
+        """
+        Set volume level for a specific stream.
+        stream: 'music', 'ring', 'alarm', 'notification', 'system', 'voice_call'
+        level: 0-15 (typical range, may vary by device)
+        """
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            # Map stream names to Android stream types
+            stream_map = {
+                'music': '3',
+                'ring': '2',
+                'alarm': '4',
+                'notification': '5',
+                'system': '1',
+                'voice_call': '0'
+            }
+            
+            stream_type = stream_map.get(stream.lower(), '3')  # Default to music
+            
+            # Method 1: Use media volume command (Android 7.0+)
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "media", "volume", "--set", str(level), "--stream", stream_type
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Method 2: Fallback to service call (requires root or special permissions)
+            if result.returncode != 0:
+                # Try using service call for audio service
+                # This is more complex and may require root
+                cmd = [
+                    self.adb_path, "-s", serial, "shell",
+                    "service", "call", "audio", "3", "i32", stream_type, "i32", str(level)
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Method 3: Use key events as last resort (less precise)
+            if result.returncode != 0:
+                # Calculate how many volume up/down key events needed
+                # This is approximate and not ideal
+                current_vol = self.get_volume(serial, stream) or 0
+                diff = level - current_vol
+                if diff != 0:
+                    keycode = "KEYCODE_VOLUME_UP" if diff > 0 else "KEYCODE_VOLUME_DOWN"
+                    for _ in range(abs(diff)):
+                        cmd = [
+                            self.adb_path, "-s", serial, "shell",
+                            "input", "keyevent", keycode
+                        ]
+                        subprocess.run(cmd, capture_output=True, timeout=2)
+                    return True
+            
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Error setting volume for {serial}: {e}")
+            return False
+    
+    def get_volume(self, serial: str, stream: str) -> Optional[int]:
+        """Get current volume level for a stream."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return 7  # Mock value
+        
+        try:
+            # Map stream names to Android stream types
+            stream_map = {
+                'music': '3',
+                'ring': '2',
+                'alarm': '4',
+                'notification': '5',
+                'system': '1',
+                'voice_call': '0'
+            }
+            
+            stream_type = stream_map.get(stream.lower(), '3')  # Default to music
+            
+            # Method 1: Use media volume command
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "media", "volume", "--get", "--stream", stream_type
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                # Parse output like "volume is 7"
+                output = result.stdout.strip()
+                try:
+                    # Extract number from output
+                    import re
+                    match = re.search(r'(\d+)', output)
+                    if match:
+                        return int(match.group(1))
+                except (ValueError, AttributeError):
+                    pass
+            
+            # Method 2: Try dumpsys audio (requires parsing)
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "dumpsys", "audio"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                # Parse dumpsys output - this is complex and device-specific
+                # For now, return None if we can't get it
+                pass
+            
+            return None
+        except Exception as e:
+            return None
+    
+    def set_brightness(self, serial: str, level: int) -> bool:
+        """
+        Set screen brightness.
+        level: 0-255 (typical range)
+        """
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            # Clamp level to valid range
+            level = max(0, min(255, level))
+            
+            # Method 1: Use settings put (requires WRITE_SETTINGS permission or root)
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "settings", "put", "system", "screen_brightness", str(level)
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Method 2: If that fails, try direct file write (requires root)
+            if result.returncode != 0:
+                cmd = [
+                    self.adb_path, "-s", serial, "shell",
+                    "su", "-c", f"echo {level} > /sys/class/leds/lcd-backlight/brightness"
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Method 3: Use service call (alternative method)
+            if result.returncode != 0:
+                # This is device-specific and may not work
+                cmd = [
+                    self.adb_path, "-s", serial, "shell",
+                    "service", "call", "power", "28", "i32", str(level)
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Error setting brightness for {serial}: {e}")
+            return False
+    
+    def get_brightness(self, serial: str) -> Optional[int]:
+        """Get current screen brightness."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return 128  # Mock value
+        
+        try:
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "settings", "get", "system", "screen_brightness"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                try:
+                    return int(result.stdout.strip())
+                except ValueError:
+                    return None
+            return None
+        except Exception as e:
+            return None
+    
+    def set_rotation_lock(self, serial: str, locked: bool) -> bool:
+        """
+        Set rotation lock.
+        locked: True to lock rotation, False to allow auto-rotation
+        """
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            # 0 = auto-rotate enabled, 1 = locked
+            value = "1" if locked else "0"
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "settings", "put", "system", "accelerometer_rotation", value
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Error setting rotation lock for {serial}: {e}")
+            return False
+    
+    def get_rotation_lock(self, serial: str) -> Optional[bool]:
+        """Get current rotation lock status."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return False
+        
+        try:
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "settings", "get", "system", "accelerometer_rotation"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                value = result.stdout.strip()
+                return value == "0"  # 0 means auto-rotate enabled (not locked)
+            return None
+        except Exception as e:
+            return None
+    
+    def set_airplane_mode(self, serial: str, enabled: bool) -> bool:
+        """Set airplane mode on/off."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            value = "1" if enabled else "0"
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "settings", "put", "global", "airplane_mode_on", value
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Also need to broadcast the change
+            if result.returncode == 0:
+                broadcast_cmd = [
+                    self.adb_path, "-s", serial, "shell",
+                    "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE",
+                    "--ez", "state", value
+                ]
+                subprocess.run(broadcast_cmd, capture_output=True, timeout=5)
+            
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Error setting airplane mode for {serial}: {e}")
+            return False
+    
+    def get_airplane_mode(self, serial: str) -> Optional[bool]:
+        """Get current airplane mode status."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return False
+        
+        try:
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "settings", "get", "global", "airplane_mode_on"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                value = result.stdout.strip()
+                return value == "1"
+            return None
+        except Exception as e:
+            return None
+    
+    def set_wifi_enabled(self, serial: str, enabled: bool) -> bool:
+        """Enable/disable WiFi."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            # Method 1: Use svc command (most reliable, requires root on some devices)
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "svc", "wifi", "enable" if enabled else "disable"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Method 2: Use settings put (may require WRITE_SETTINGS permission)
+            if result.returncode != 0:
+                value = "1" if enabled else "0"
+                cmd = [
+                    self.adb_path, "-s", serial, "shell",
+                    "settings", "put", "global", "wifi_on", value
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Method 3: Use service call (alternative)
+            if result.returncode != 0:
+                cmd = [
+                    self.adb_path, "-s", serial, "shell",
+                    "service", "call", "wifi", "13", "i32", "1" if enabled else "0"
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Error setting WiFi for {serial}: {e}")
+            return False
+    
+    def get_wifi_enabled(self, serial: str) -> Optional[bool]:
+        """Get current WiFi status."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "settings", "get", "global", "wifi_on"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                value = result.stdout.strip()
+                return value == "1"
+            return None
+        except Exception as e:
+            return None
+    
+    def set_bluetooth_enabled(self, serial: str, enabled: bool) -> bool:
+        """Enable/disable Bluetooth."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return True
+        
+        try:
+            # Method 1: Use svc command (most reliable, requires root on some devices)
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "svc", "bluetooth", "enable" if enabled else "disable"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Method 2: Use settings put (may require WRITE_SETTINGS permission)
+            if result.returncode != 0:
+                value = "1" if enabled else "0"
+                cmd = [
+                    self.adb_path, "-s", serial, "shell",
+                    "settings", "put", "global", "bluetooth_on", value
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            # Method 3: Use service call (alternative)
+            if result.returncode != 0:
+                cmd = [
+                    self.adb_path, "-s", serial, "shell",
+                    "service", "call", "bluetooth_manager", "6" if enabled else "8"
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Error setting Bluetooth for {serial}: {e}")
+            return False
+    
+    def get_bluetooth_enabled(self, serial: str) -> Optional[bool]:
+        """Get current Bluetooth status."""
+        if self.mock_mode or serial.startswith("MOCK"):
+            return False
+        
+        try:
+            cmd = [
+                self.adb_path, "-s", serial, "shell",
+                "settings", "get", "global", "bluetooth_on"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                value = result.stdout.strip()
+                return value == "1"
+            return None
+        except Exception as e:
+            return None
