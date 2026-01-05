@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread, QSettings, QMimeData, QUrl
+from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread, QSettings, QMimeData, QUrl, Qt
 from PySide6.QtGui import QGuiApplication, QClipboard
 from PySide6.QtWidgets import QFileDialog
 from .worker import ADBWorker
@@ -7,6 +7,7 @@ from .adb_handler import ADBHandler
 from .profiles import get_profile_names, get_profile_flags
 import json
 import os
+import subprocess
 
 class BackendBridge(QObject):
     # Signals
@@ -31,7 +32,6 @@ class BackendBridge(QObject):
     requestDevices = Signal()
     requestPackages = Signal(str)
     requestToggleScreen = Signal(str)
-    requestScrcpyShortcut = Signal(str, str)
     requestIcon = Signal(str, str)  # serial, package_name
     requestDeviceStatus = Signal(str)  # serial
     requestPushFile = Signal(str, str, str)  # serial, local_path, remote_path
@@ -91,20 +91,19 @@ class BackendBridge(QObject):
         self._worker = ADBWorker()
         self._worker.moveToThread(self._thread)
         
-        # Connect Signals
-        self.requestDevices.connect(self._worker.fetch_devices)
-        self.requestPackages.connect(self._worker.fetch_packages)
-        self.requestToggleScreen.connect(self._worker.toggle_device_screen)
-        self.requestScrcpyShortcut.connect(self._worker.send_scrcpy_shortcut)
-        self.requestIcon.connect(self._worker.fetch_icon)
-        self.requestDeviceStatus.connect(self._worker.fetch_device_status)
-        self.requestScreenshot.connect(self._worker.capture_screenshot)
-        self.requestSetVolume.connect(self._worker.set_volume)
-        self.requestSetBrightness.connect(self._worker.set_brightness)
-        self.requestSetRotationLock.connect(self._worker.set_rotation_lock)
-        self.requestSetAirplaneMode.connect(self._worker.set_airplane_mode)
-        self.requestSetWifi.connect(self._worker.set_wifi_enabled)
-        self.requestSetBluetooth.connect(self._worker.set_bluetooth_enabled)
+        # Connect Signals (use QueuedConnection for cross-thread communication)
+        self.requestDevices.connect(self._worker.fetch_devices, Qt.ConnectionType.QueuedConnection)
+        self.requestPackages.connect(self._worker.fetch_packages, Qt.ConnectionType.QueuedConnection)
+        self.requestToggleScreen.connect(self._worker.toggle_device_screen, Qt.ConnectionType.QueuedConnection)
+        self.requestIcon.connect(self._worker.fetch_icon, Qt.ConnectionType.QueuedConnection)
+        self.requestDeviceStatus.connect(self._worker.fetch_device_status, Qt.ConnectionType.QueuedConnection)
+        self.requestScreenshot.connect(self._worker.capture_screenshot, Qt.ConnectionType.QueuedConnection)
+        self.requestSetVolume.connect(self._worker.set_volume, Qt.ConnectionType.QueuedConnection)
+        self.requestSetBrightness.connect(self._worker.set_brightness, Qt.ConnectionType.QueuedConnection)
+        self.requestSetRotationLock.connect(self._worker.set_rotation_lock, Qt.ConnectionType.QueuedConnection)
+        self.requestSetAirplaneMode.connect(self._worker.set_airplane_mode, Qt.ConnectionType.QueuedConnection)
+        self.requestSetWifi.connect(self._worker.set_wifi_enabled, Qt.ConnectionType.QueuedConnection)
+        self.requestSetBluetooth.connect(self._worker.set_bluetooth_enabled, Qt.ConnectionType.QueuedConnection)
         
         self._worker.devicesReady.connect(self._on_devices_ready)
         self._worker.packagesReady.connect(self._on_packages_ready)
@@ -471,35 +470,47 @@ class BackendBridge(QObject):
 
     @Slot(str)
     def toggle_screen(self, serial):
+        """Toggle device screen power (sleep/wake) using ADB directly."""
         try:
             if not serial:
+                print(f"[DEBUG] toggle_screen: No serial provided")
                 return
+            
+            if not self._adb_handler.adb_path:
+                self.statusMessage.emit("ADB not found. Please install Android SDK platform-tools.")
+                return
+            
+            print(f"[DEBUG] toggle_screen: Toggling power for {serial}")
             self.statusMessage.emit(f"Toggling Power (Sleep/Wake) for {serial}")
-            self.requestToggleScreen.emit(serial)
-        except Exception:
-            pass
+            
+            # Call ADB directly from main thread (it's a quick operation)
+            import subprocess
+            try:
+                subprocess.run(
+                    [self._adb_handler.adb_path, "-s", serial, "shell", "input", "keyevent", "26"],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    timeout=5
+                )
+                print(f"[DEBUG] toggle_screen: Success for {serial}")
+                self.statusMessage.emit(f"Power toggled for {serial}")
+            except subprocess.TimeoutExpired:
+                print(f"[DEBUG] toggle_screen: Timeout for {serial}")
+                self.statusMessage.emit(f"Timeout while toggling screen for {serial}")
+            except subprocess.CalledProcessError as e:
+                error_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)
+                print(f"[DEBUG] toggle_screen: Error for {serial}: {error_msg}")
+                self.statusMessage.emit(f"Failed to toggle screen for {serial}")
+            except Exception as e:
+                print(f"[DEBUG] toggle_screen: Exception for {serial}: {e}")
+                self.statusMessage.emit(f"Error: {str(e)}")
+        except Exception as e:
+            print(f"[DEBUG] toggle_screen exception: {e}")
+            import traceback
+            traceback.print_exc()
+            self.statusMessage.emit(f"Error: {str(e)}")
     
-    @Slot(str)
-    def toggle_scrcpy_display(self, serial):
-        """Sends Super+o (Screen Off) via xdotool to the window"""
-        try:
-            if not serial:
-                return
-            self.statusMessage.emit(f"Sending Screen Off (Super+o) to {serial}...")
-            self.requestScrcpyShortcut.emit(serial, "screen_off")
-        except Exception:
-            pass
-        
-    @Slot(str)
-    def turn_scrcpy_display_on(self, serial):
-        """Sends Super+Shift+o (Screen On) via xdotool to the window"""
-        try:
-            if not serial:
-                return
-            self.statusMessage.emit(f"Sending Screen On (Super+Shift+o) to {serial}...")
-            self.requestScrcpyShortcut.emit(serial, "screen_on")
-        except Exception:
-            pass
 
     def _get_display_params(self, serial, mode):
         width, height, density = 1280, 800, 240 # Tablet / Default (HD+ @ 240 DPI)

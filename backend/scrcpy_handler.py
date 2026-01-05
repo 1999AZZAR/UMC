@@ -27,7 +27,8 @@ class ScrcpyHandler:
             f"--start-app={package_name}",   # Start specific app
             "--window-title", window_title,
             "--force-adb-forward",
-            "--no-cleanup"                   # Keep display alive if needed (optional)
+            "--no-cleanup",                  # Keep display alive if needed (optional)
+            "--shortcut-mod=lsuper"           # Use Left Super key for shortcuts (MOD key)
         ]
         
         if window_x is not None:
@@ -54,7 +55,8 @@ class ScrcpyHandler:
         
         try:
             # We use Popen to keep it running non-blocking
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Don't suppress stderr so we can see errors in console
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=None)
             return True
         except FileNotFoundError:
             print("Scrcpy not found")
@@ -79,7 +81,8 @@ class ScrcpyHandler:
             f"--new-display={resolution}",
             "--window-title", window_title,
             "--force-adb-forward",
-            "--no-cleanup"
+            "--no-cleanup",
+            "--shortcut-mod=lsuper"           # Use Left Super key for shortcuts (MOD key)
         ]
         
         if extra_flags:
@@ -94,7 +97,8 @@ class ScrcpyHandler:
         print(f"Executing Create Display: {' '.join(cmd)}")
         
         try:
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Don't suppress stderr so we can see errors in console
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=None)
             return True
         except FileNotFoundError:
             print("Scrcpy not found")
@@ -117,7 +121,8 @@ class ScrcpyHandler:
             self.scrcpy_path,
             "--serial", serial,
             f"--max-size={max(width, height)}", # Approximate scaling
-            "--window-title", window_title
+            "--window-title", window_title,
+            "--shortcut-mod=lsuper"           # Use Left Super key for shortcuts (MOD key)
         ]
         
         if window_x is not None:
@@ -141,7 +146,8 @@ class ScrcpyHandler:
         print(f"Executing Mirror: {' '.join(cmd)}")
         
         try:
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Don't suppress stderr so we can see errors in console
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=None)
             return True
         except Exception as e:
             print(f"Failed to mirror: {e}")
@@ -168,7 +174,8 @@ class ScrcpyHandler:
         print(f"Executing Record: {' '.join(cmd)}")
         
         try:
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Don't suppress stderr so we can see errors in console
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=None)
             return True
         except Exception as e:
             print(f"Failed to record: {e}")

@@ -1,3 +1,12 @@
+umc (1.0.5-2) unstable; urgency=medium
+
+  * Fix: Changed power toggle to call ADB directly from bridge instead of worker thread
+  * Fix: Fixed scrcpy shortcut modifier key from 'super' to 'lsuper'
+  * Fix: Removed screen toggle button, kept only power toggle button
+  * Fix: Improved error handling and debug logging for power toggle
+
+ -- Unified Mobile Controller Team <umc@project.local>  Mon, 05 Jan 2026 15:28:00 +0700
+
 umc (1.0.5-1) unstable; urgency=medium
 
   * Fix: Remove mock device implementation - all mock mode code removed from codebase.

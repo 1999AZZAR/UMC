@@ -414,37 +414,6 @@ Rectangle {
                                 }
                             }
                         }
-                        
-                        // Screen Toggle
-                        Rectangle {
-                            width: 24
-                            height: 24
-                            radius: 4
-                            color: screenBtnArea.containsMouse ? Style.background : "transparent"
-                            
-                            Icon {
-                                anchors.centerIn: parent
-                                name: "screen_off"
-                                size: 14
-                                color: screenBtnArea.pressed ? Style.accent : Style.textSecondary
-                            }
-                            
-                            MouseArea {
-                                id: screenBtnArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: (mouse) => {
-                                    if (bridge) {
-                                        bridge.toggle_scrcpy_display(modelData.serial)
-                                        mouse.accepted = true
-                                    }
-                                }
-                                ToolTip.visible: containsMouse
-                                ToolTip.text: "Turn Screen Off (Scrcpy)"
-                                ToolTip.delay: 500
-                            }
-                        }
 
                         // Power Button
                         Rectangle {
@@ -473,6 +442,8 @@ Rectangle {
                                     }
                                 }
                                 ToolTip.visible: containsMouse
+                                ToolTip.text: "Toggle Power (Device)"
+                                ToolTip.delay: 500
                             }
                         }
                     }

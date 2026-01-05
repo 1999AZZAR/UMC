@@ -27,6 +27,10 @@ class ADBWorker(QObject):
         self.adb_path = self.adb_handler.adb_path
         self._should_stop = False  # Flag to stop operations quickly
         
+        # Track scrcpy screen state per device (True = on, False = off)
+        # Default to True (screen on) when scrcpy starts
+        self._scrcpy_screen_state = {}
+        
         # Set up icon cache directory
         cache_dir = QStandardPaths.writableLocation(QStandardPaths.CacheLocation)
         self.icon_cache_dir = os.path.join(cache_dir, "umc", "icons")
@@ -123,46 +127,109 @@ class ADBWorker(QObject):
     @Slot(str)
     def toggle_device_screen(self, serial: str):
         """Toggles the device screen power (KEYCODE_POWER)."""
+        print(f"[DEBUG] toggle_device_screen called for {serial}")
         if not self.adb_path:
+            print(f"[DEBUG] toggle_device_screen: ADB path not found")
+            self.errorOccurred.emit("ADB not found. Please install Android SDK platform-tools.")
             return
 
         try:
+            print(f"[DEBUG] toggle_device_screen: Executing ADB command for {serial}")
             # KEYCODE_POWER = 26
-            subprocess.run(
+            result = subprocess.run(
                 [self.adb_path, "-s", serial, "shell", "input", "keyevent", "26"], 
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5
             )
+            print(f"[DEBUG] toggle_device_screen: Success for {serial}")
+        except subprocess.TimeoutExpired:
+            print(f"[DEBUG] toggle_device_screen: Timeout for {serial}")
+            self.errorOccurred.emit(f"Timeout while toggling screen for {serial}")
+        except subprocess.CalledProcessError as e:
+            error_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)
+            print(f"[DEBUG] toggle_device_screen: Error for {serial}: {error_msg}")
+            self.errorOccurred.emit(f"Failed to toggle screen for {serial}: {error_msg}")
         except Exception as e:
+            print(f"[DEBUG] toggle_device_screen: Exception for {serial}: {e}")
             self.errorOccurred.emit(f"Failed to toggle screen for {serial}: {str(e)}")
 
     @Slot(str, str)
     def send_scrcpy_shortcut(self, serial: str, shortcut: str):
         """
-        Sends a shortcut to the scrcpy window for the given serial using xdotool.
-        shortcut: 'screen_off' (Super+o) or 'screen_on' (Super+Shift+o)
+        Sends a keyboard shortcut to the scrcpy window for the given serial using xdotool.
+        shortcut: 'toggle' - toggles scrcpy screen on/off
+        MOD+o turns screen OFF, MOD+Shift+o turns screen ON (MOD = Super on Linux)
         """
+        print(f"[DEBUG] send_scrcpy_shortcut called for {serial}, shortcut: {shortcut}")
         window_name = f"UMC - {serial}"
-        key_combo = "Super+o" if shortcut == 'screen_off' else "Super+Shift+o"
+        
+        # Initialize state to ON (True) if not set
+        if serial not in self._scrcpy_screen_state:
+            self._scrcpy_screen_state[serial] = True
+        
+        # Determine which key combination to send based on current state
+        # MOD+o turns OFF, MOD+Shift+o turns ON
+        current_state = self._scrcpy_screen_state[serial]
+        if current_state:
+            # Screen is ON, send MOD+o to turn OFF
+            key_combo = "super+o"
+            new_state = False
+        else:
+            # Screen is OFF, send MOD+Shift+o to turn ON
+            key_combo = "super+shift+o"
+            new_state = True
+        
+        print(f"[DEBUG] send_scrcpy_shortcut: Current state={current_state}, sending {key_combo}")
         
         try:
-            # Check if xdotool exists first (could cache this)
+            # Check if xdotool exists first
             if not shutil.which("xdotool"):
+                print(f"[DEBUG] send_scrcpy_shortcut: xdotool not found")
                 self.errorOccurred.emit("xdotool not found. Install it to use this feature.")
                 return
 
-            # Search for window and send key
-            # xdotool search --name "Title" windowactivate --sync key keys
-            cmd = [
-                "xdotool", "search", "--name", window_name, 
-                "windowactivate", "--sync", 
-                "key", key_combo
+            # Search for window and send key combination
+            # Try multiple window title patterns (with and without serial variations)
+            window_patterns = [
+                window_name,
+                f"UMC - {serial} (Virtual)",
+                f"scrcpy {serial}"
             ]
             
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            window_found = False
+            for pattern in window_patterns:
+                try:
+                    print(f"[DEBUG] send_scrcpy_shortcut: Searching for window pattern: {pattern}")
+                    # Search for window ID
+                    search_cmd = ["xdotool", "search", "--name", pattern]
+                    result = subprocess.run(search_cmd, capture_output=True, text=True, check=True)
+                    window_ids = result.stdout.strip().split('\n')
+                    
+                    if window_ids and window_ids[0]:
+                        window_id = window_ids[0].strip()
+                        if window_id:
+                            print(f"[DEBUG] send_scrcpy_shortcut: Found window {window_id}, sending {key_combo}")
+                            # Send key combination directly to window without activating it
+                            # This avoids blocking the Qt event loop
+                            key_cmd = ["xdotool", "key", "--window", window_id, key_combo]
+                            subprocess.run(key_cmd, check=True, capture_output=True, text=True, timeout=2)
+                            
+                            # Update state after sending command
+                            self._scrcpy_screen_state[serial] = new_state
+                            print(f"[DEBUG] send_scrcpy_shortcut: Success, new state={new_state}")
+                            window_found = True
+                            break
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError) as e:
+                    print(f"[DEBUG] send_scrcpy_shortcut: Pattern {pattern} failed: {e}")
+                    continue
             
-        except subprocess.CalledProcessError:
-            self.errorOccurred.emit(f"Could not find window for device {serial}")
+            if not window_found:
+                print(f"[DEBUG] send_scrcpy_shortcut: Window not found for {serial}")
+                self.errorOccurred.emit(f"Could not find scrcpy window for device {serial}")
+            
         except Exception as e:
+            print(f"[DEBUG] send_scrcpy_shortcut: Exception: {e}")
+            import traceback
+            traceback.print_exc()
             self.errorOccurred.emit(f"Failed to send shortcut: {str(e)}")
 
     def get_device_info(self, serial: str) -> Tuple[int, int, int]:
