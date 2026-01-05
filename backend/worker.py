@@ -25,7 +25,6 @@ class ADBWorker(QObject):
         super().__init__()
         self.adb_handler = ADBHandler()
         self.adb_path = self.adb_handler.adb_path
-        self.mock_mode = self.adb_handler.mock_mode
         self._should_stop = False  # Flag to stop operations quickly
         
         # Set up icon cache directory
@@ -49,7 +48,7 @@ class ADBWorker(QObject):
     @Slot(str)
     def fetch_device_status(self, serial: str):
         """Fetches device status information (battery, temperature, storage, etc.)."""
-        if not serial or self.mock_mode or serial.startswith("MOCK"):
+        if not serial or not self.adb_path:
             return
         
         try:
@@ -63,15 +62,8 @@ class ADBWorker(QObject):
     def fetch_packages(self, serial: str):
         """Fetches all launchable packages (users apps + system apps with launcher activity)."""
         try:
-            if self.mock_mode or serial.startswith("MOCK"):
-                mock_apps = [
-                    {"package": "com.android.chrome", "name": "Chrome", "icon": None},
-                    {"package": "com.google.android.youtube", "name": "YouTube", "icon": None},
-                    {"package": "com.whatsapp", "name": "WhatsApp", "icon": None},
-                    {"package": "com.instagram.android", "name": "Instagram", "icon": None},
-                    {"package": "com.android.settings", "name": "Settings", "icon": None}
-                ]
-                self.packagesReady.emit(serial, mock_apps)
+            if not self.adb_path:
+                self.packagesReady.emit(serial, [])
                 return
 
             # Use cmd package query-activities to get all launchable apps
@@ -131,8 +123,7 @@ class ADBWorker(QObject):
     @Slot(str)
     def toggle_device_screen(self, serial: str):
         """Toggles the device screen power (KEYCODE_POWER)."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            print(f"Mock toggling screen for {serial}")
+        if not self.adb_path:
             return
 
         try:
@@ -150,10 +141,6 @@ class ADBWorker(QObject):
         Sends a shortcut to the scrcpy window for the given serial using xdotool.
         shortcut: 'screen_off' (Super+o) or 'screen_on' (Super+Shift+o)
         """
-        if self.mock_mode:
-            print(f"Mock sending shortcut {shortcut} to {serial}")
-            return
-
         window_name = f"UMC - {serial}"
         key_combo = "Super+o" if shortcut == 'screen_off' else "Super+Shift+o"
         
@@ -189,7 +176,7 @@ class ADBWorker(QObject):
     @Slot(str, str)
     def fetch_icon(self, serial: str, package_name: str):
         """Fetches icon for a specific package in background (non-blocking, optional)."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         # Check cache first - if exists, return immediately
@@ -214,7 +201,7 @@ class ADBWorker(QObject):
     @Slot(str, str, str)
     def push_file(self, serial: str, local_path: str, remote_path: str):
         """Push file to device."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -229,7 +216,7 @@ class ADBWorker(QObject):
     @Slot(str, str, str)
     def pull_file(self, serial: str, remote_path: str, local_path: str):
         """Pull file from device."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -244,7 +231,7 @@ class ADBWorker(QObject):
     @Slot(str, str)
     def get_clipboard(self, serial: str):
         """Get clipboard from device."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -257,7 +244,7 @@ class ADBWorker(QObject):
     @Slot(str, str)
     def set_clipboard(self, serial: str, text: str):
         """Set clipboard on device."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -268,7 +255,7 @@ class ADBWorker(QObject):
     @Slot(str)
     def capture_screenshot(self, serial: str):
         """Capture screenshot from device."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -289,7 +276,7 @@ class ADBWorker(QObject):
     @Slot(str, str, int)
     def set_volume(self, serial: str, stream: str, level: int):
         """Set volume for a stream."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -304,7 +291,7 @@ class ADBWorker(QObject):
     @Slot(str, int)
     def set_brightness(self, serial: str, level: int):
         """Set screen brightness."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -319,7 +306,7 @@ class ADBWorker(QObject):
     @Slot(str, bool)
     def set_rotation_lock(self, serial: str, locked: bool):
         """Set rotation lock."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -334,7 +321,7 @@ class ADBWorker(QObject):
     @Slot(str, bool)
     def set_airplane_mode(self, serial: str, enabled: bool):
         """Set airplane mode."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -347,7 +334,7 @@ class ADBWorker(QObject):
     @Slot(str, bool)
     def set_wifi_enabled(self, serial: str, enabled: bool):
         """Enable/disable WiFi."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:
@@ -362,7 +349,7 @@ class ADBWorker(QObject):
     @Slot(str, bool)
     def set_bluetooth_enabled(self, serial: str, enabled: bool):
         """Enable/disable Bluetooth."""
-        if self._should_stop or self.mock_mode or serial.startswith("MOCK"):
+        if self._should_stop or not self.adb_path:
             return
         
         try:

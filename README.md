@@ -22,7 +22,7 @@ A desktop application for managing Android devices and launching applications in
 
 ## Overview
 
-UMC is a cross-platform desktop application providing a graphical interface for managing Android devices. It transforms your desktop into a persistent mobile workspace.
+UMC is a Linux desktop application providing a graphical interface for managing Android devices. It transforms your desktop into a persistent mobile workspace.
 
 - **Device Management**: Connect and manage Android devices via USB or network
 - **App Launching**: Browse and launch Android applications in isolated virtual displays
@@ -31,7 +31,7 @@ UMC is a cross-platform desktop application providing a graphical interface for 
 ### Tech Stack
 
 - **Frontend**: QML (Qt Quick) for the user interface
-- **Backend**: Python with PySide6 for cross-platform compatibility
+- **Backend**: Python with PySide6
 - **Tools**: `adb` for device communication, `scrcpy` for virtual displays
 
 ## Architecture
@@ -50,7 +50,6 @@ UMC uses a multi-threaded architecture for performance:
 - **Responsive UI**: Non-blocking interface during device operations
 - **Real-time Updates**: Live device status monitoring
 - **Isolated Sessions**: Each app runs in its own virtual display
-- **Cross-platform**: Works on Linux, Windows, and macOS
 
 ## Features
 
@@ -80,7 +79,6 @@ Configurable profiles to optimize the streaming experience based on needs:
 
 ### Developer Tools
 - **Debug Mode**: Verbose logging for troubleshooting
-- **Mock Mode**: Testing without physical Android devices
 - **Device Metrics**: Real-time performance monitoring
 
 ## Prerequisites
@@ -89,7 +87,7 @@ Configurable profiles to optimize the streaming experience based on needs:
 
 | Component | Requirement | Notes |
 |-----------|-------------|-------|
-| **OS** | Linux, Windows, macOS | Linux recommended for best experience |
+| **OS** | Linux (Debian-based) | Ubuntu, Debian, or derivatives |
 | **Python** | 3.10 or higher | Required for application runtime |
 | **Display** | X11 or Wayland | Linux display server |
 | **ADB** | Android Debug Bridge | Device communication |
@@ -170,7 +168,6 @@ sudo dpkg -i ../umc_*.deb
 
 - **Debian testing/unstable**: PySide6 available in repositories
 - **Older distributions**: Install via pip: `pip install PySide6`
-- **Windows/macOS**: PySide6 included in requirements.txt
 
 ## Uninstallation
 
@@ -213,9 +210,9 @@ sudo apt autoremove
 
 | Mode | Resolution | Density | Best For |
 |------|------------|---------|----------|
-| **Tablet** (Default) | 1280x800 | 160 DPI | Standard desktop usage |
+| **Tablet** (Default) | 1280x800 | 240 DPI | Standard desktop usage (HD+) |
 | **Phone** | Device Native | Device Native | Mobile app testing |
-| **Desktop** | 1920x1080 | 180 DPI | Full HD desktop experience |
+| **Desktop** | 1920x1080 | 240 DPI | Full HD desktop experience |
 
 ## Technical Details
 
@@ -245,7 +242,6 @@ sudo apt autoremove
 - Enable USB debugging: Settings -> Developer Options -> USB Debugging
 - Authorize computer on device popup
 - Try different USB cable/port
-- Check device drivers (Windows)
 
 **"Device unauthorized"**
 ```bash

@@ -3,6 +3,7 @@ from PySide6.QtGui import QGuiApplication, QClipboard
 from PySide6.QtWidgets import QFileDialog
 from .worker import ADBWorker
 from .scrcpy_handler import ScrcpyHandler
+from .adb_handler import ADBHandler
 from .profiles import get_profile_names, get_profile_flags
 import json
 import os
@@ -46,6 +47,7 @@ class BackendBridge(QObject):
     def __init__(self):
         super().__init__()
         self._scrcpy = ScrcpyHandler()
+        self._adb_handler = ADBHandler()  # For synchronous calls from main thread
         self._current_device_serial = ""
         self._devices = []
         self._packages = []
@@ -500,18 +502,23 @@ class BackendBridge(QObject):
             pass
 
     def _get_display_params(self, serial, mode):
-        width, height, density = 1280, 800, 160 # Tablet / Default
+        width, height, density = 1280, 800, 240 # Tablet / Default (HD+ @ 240 DPI)
         
         if mode == "Desktop":
-            width, height, density = 1920, 1080, 160
+            width, height, density = 1920, 1080, 240 # Full HD @ 240 DPI
         elif mode == "Phone":
-             # This is a synchronous call to the worker object living in another thread.
-             w, h, d = self._worker.get_device_info(serial)
-             if w and h:
-                 width, height, density = w, h, d
-             else:
-                 # Fallback
-                 width, height, density = 1080, 2400, 420
+             # Use ADB handler directly to avoid cross-thread calls
+             try:
+                 w, h = self._adb_handler.get_device_resolution(serial)
+                 d = self._adb_handler.get_device_density(serial)
+                 if w and h:
+                     width, height, density = w, h, d
+                 else:
+                     # Fallback (HD resolution @ 320 DPI for better quality)
+                     width, height, density = 1280, 720, 320
+             except Exception:
+                 # Fallback (HD resolution @ 320 DPI for better quality)
+                 width, height, density = 1280, 720, 320
         
         return width, height, density
 

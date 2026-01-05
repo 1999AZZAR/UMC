@@ -1,3 +1,13 @@
+umc (1.0.5-1) unstable; urgency=medium
+
+  * Fix: Remove mock device implementation - all mock mode code removed from codebase.
+  * Fix: Resolve Qt cross-thread call exception in _get_display_params by using ADBHandler directly.
+  * Feature: Improve DPI settings - all modes now use at least HD resolution with improved DPI (Tablet: 240 DPI, Desktop: 240 DPI, Phone: 320 DPI fallback).
+  * Change: Update documentation to reflect Linux (Debian-based) only support - removed Windows/macOS references.
+  * Change: Phone mode fallback now uses standard HD resolution (1280x720 @ 320 DPI) instead of device-specific fallback.
+
+ -- Unified Mobile Controller Team <umc@project.local>  Mon, 05 Jan 2026 07:26:00 +0000
+
 umc (1.0.4-4) unstable; urgency=medium
 
   * Feature: Add app icon display - fetches and displays actual app icons from Android devices.

@@ -7,13 +7,11 @@ from typing import List, Dict, Optional
 class ADBHandler:
     def __init__(self):
         self.adb_path = shutil.which("adb")
-        self.mock_mode = self.adb_path is None
 
     def connect(self, address: str) -> bool:
         """Connects to a device via TCP/IP."""
-        if self.mock_mode:
-            print(f"Mock connecting to {address}")
-            return True
+        if not self.adb_path:
+            return False
             
         try:
             subprocess.run([self.adb_path, "connect", address], check=True, capture_output=True)
@@ -23,9 +21,8 @@ class ADBHandler:
 
     def disconnect(self, address: str) -> bool:
         """Disconnects a device."""
-        if self.mock_mode:
-            print(f"Mock disconnecting {address}")
-            return True
+        if not self.adb_path:
+            return False
             
         try:
             subprocess.run([self.adb_path, "disconnect", address], check=True, capture_output=True)
@@ -34,11 +31,8 @@ class ADBHandler:
             return False
 
     def get_devices(self) -> List[Dict[str, str]]:
-        if self.mock_mode:
-            return [
-                {"serial": "MOCK_DEVICE_01", "model": "Pixel_7_Pro", "status": "device"},
-                {"serial": "192.168.1.105:5555", "model": "Galaxy_Tab_S8", "status": "device"}
-            ]
+        if not self.adb_path:
+            return []
 
         try:
             result = subprocess.run(
@@ -75,13 +69,8 @@ class ADBHandler:
             return []
 
     def get_installed_packages(self, serial: str) -> List[str]:
-        if self.mock_mode or serial.startswith("MOCK"):
-            return [
-                "com.android.chrome", "com.google.android.youtube", 
-                "com.whatsapp", "com.instagram.android", "com.twitter.android",
-                "com.spotify.music", "com.netflix.mediaclient", "com.discord",
-                "com.microsoft.teams", "com.slack", "org.telegram.messenger"
-            ]
+        if not self.adb_path:
+            return []
 
         try:
             # -3 to list third-party apps only, usually more relevant
@@ -99,7 +88,7 @@ class ADBHandler:
     def get_device_resolution(self, serial: str) -> tuple[int, int]:
         default_res = (1080, 2400)
         
-        if self.mock_mode or serial.startswith("MOCK"):
+        if not self.adb_path:
             return default_res
 
         try:
@@ -119,7 +108,7 @@ class ADBHandler:
     def get_device_density(self, serial: str) -> int:
         default_density = 400
         
-        if self.mock_mode or serial.startswith("MOCK"):
+        if not self.adb_path:
             return default_density
 
         try:
@@ -160,8 +149,8 @@ class ADBHandler:
 
     def get_app_label(self, serial: str, package_name: str) -> str:
         """Gets the display label (name) of an app."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            # Extract a friendly name from package
+        if not self.adb_path:
+            # Fallback: use package name
             if "." in package_name:
                 return package_name.split(".")[-1].capitalize()
             return package_name
@@ -197,7 +186,7 @@ class ADBHandler:
         Fetches app icon from device and saves it to cache.
         Returns the path to the cached icon file, or None if failed.
         """
-        if self.mock_mode or serial.startswith("MOCK"):
+        if not self.adb_path:
             return None
         
         # Create cache directory if it doesn't exist
@@ -333,8 +322,8 @@ class ADBHandler:
 
     def get_battery_level(self, serial: str) -> Optional[int]:
         """Gets battery level percentage (0-100)."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return 85  # Mock value
+        if not self.adb_path:
+            return None
         
         try:
             cmd = [self.adb_path, "-s", serial, "shell", "dumpsys", "battery"]
@@ -354,8 +343,8 @@ class ADBHandler:
 
     def get_battery_status(self, serial: str) -> Optional[str]:
         """Gets battery status (charging, discharging, full, etc.)."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return "discharging"
+        if not self.adb_path:
+            return None
         
         try:
             cmd = [self.adb_path, "-s", serial, "shell", "dumpsys", "battery"]
@@ -380,8 +369,8 @@ class ADBHandler:
 
     def get_device_temperature(self, serial: str) -> Optional[float]:
         """Gets device temperature in Celsius."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return 35.0  # Mock value
+        if not self.adb_path:
+            return None
         
         try:
             # Try to get battery temperature first (most reliable)
@@ -403,8 +392,8 @@ class ADBHandler:
 
     def get_storage_info(self, serial: str) -> Optional[Dict[str, int]]:
         """Gets storage information (total, used, free in MB)."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return {"total": 128000, "used": 64000, "free": 64000}
+        if not self.adb_path:
+            return None
         
         try:
             cmd = [self.adb_path, "-s", serial, "shell", "df", "/data"]
@@ -435,11 +424,11 @@ class ADBHandler:
 
     def get_network_type(self, serial: str) -> Optional[str]:
         """Gets network connection type (usb, wifi, etc.)."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return "usb" if "MOCK" in serial else "wifi"
+        if not self.adb_path:
+            return None
         
         # Check if serial contains IP address (wifi) or not (usb)
-        if ":" in serial and not serial.startswith("MOCK"):
+        if ":" in serial:
             return "wifi"
         return "usb"
 
@@ -458,8 +447,8 @@ class ADBHandler:
         Push a file from local to device.
         callback(progress_percent, bytes_transferred, total_bytes) can be provided for progress.
         """
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             cmd = [self.adb_path, "-s", serial, "push", local_path, remote_path]
@@ -484,8 +473,8 @@ class ADBHandler:
         Pull a file from device to local.
         callback(progress_percent, bytes_transferred, total_bytes) can be provided for progress.
         """
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             cmd = [self.adb_path, "-s", serial, "pull", remote_path, local_path]
@@ -505,12 +494,8 @@ class ADBHandler:
 
     def list_files(self, serial: str, remote_path: str = "/sdcard") -> List[Dict[str, str]]:
         """List files in a remote directory."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return [
-                {"name": "Download", "type": "directory", "size": ""},
-                {"name": "Pictures", "type": "directory", "size": ""},
-                {"name": "test.txt", "type": "file", "size": "1024"}
-            ]
+        if not self.adb_path:
+            return []
         
         try:
             cmd = [self.adb_path, "-s", serial, "shell", "ls", "-lh", remote_path]
@@ -535,8 +520,8 @@ class ADBHandler:
 
     def get_clipboard(self, serial: str) -> Optional[str]:
         """Get clipboard content from Android device."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return "Mock clipboard content"
+        if not self.adb_path:
+            return None
         
         try:
             # Method 1: Try using service call (Android 10+)
@@ -559,8 +544,8 @@ class ADBHandler:
 
     def set_clipboard(self, serial: str, text: str) -> bool:
         """Set clipboard content on Android device."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             # Method 1: Use Clipper app (if installed)
@@ -583,14 +568,8 @@ class ADBHandler:
     
     def capture_screenshot(self, serial: str, save_path: str) -> bool:
         """Capture screenshot from device and save to local path."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            # Create a mock screenshot file
-            try:
-                with open(save_path, 'wb') as f:
-                    f.write(b'Mock screenshot data')
-                return True
-            except Exception:
-                return False
+        if not self.adb_path:
+            return False
         
         try:
             # Use screencap command and pipe to file
@@ -611,8 +590,8 @@ class ADBHandler:
         stream: 'music', 'ring', 'alarm', 'notification', 'system', 'voice_call'
         level: 0-15 (typical range, may vary by device)
         """
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             # Map stream names to Android stream types
@@ -667,8 +646,8 @@ class ADBHandler:
     
     def get_volume(self, serial: str, stream: str) -> Optional[int]:
         """Get current volume level for a stream."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return 7  # Mock value
+        if not self.adb_path:
+            return None
         
         try:
             # Map stream names to Android stream types
@@ -722,8 +701,8 @@ class ADBHandler:
         Set screen brightness.
         level: 0-255 (typical range)
         """
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             # Clamp level to valid range
@@ -760,8 +739,8 @@ class ADBHandler:
     
     def get_brightness(self, serial: str) -> Optional[int]:
         """Get current screen brightness."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return 128  # Mock value
+        if not self.adb_path:
+            return None
         
         try:
             cmd = [
@@ -784,8 +763,8 @@ class ADBHandler:
         Set rotation lock.
         locked: True to lock rotation, False to allow auto-rotation
         """
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             # 0 = auto-rotate enabled, 1 = locked
@@ -802,8 +781,8 @@ class ADBHandler:
     
     def get_rotation_lock(self, serial: str) -> Optional[bool]:
         """Get current rotation lock status."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return False
+        if not self.adb_path:
+            return None
         
         try:
             cmd = [
@@ -821,8 +800,8 @@ class ADBHandler:
     
     def set_airplane_mode(self, serial: str, enabled: bool) -> bool:
         """Set airplane mode on/off."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             value = "1" if enabled else "0"
@@ -848,8 +827,8 @@ class ADBHandler:
     
     def get_airplane_mode(self, serial: str) -> Optional[bool]:
         """Get current airplane mode status."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return False
+        if not self.adb_path:
+            return None
         
         try:
             cmd = [
@@ -867,8 +846,8 @@ class ADBHandler:
     
     def set_wifi_enabled(self, serial: str, enabled: bool) -> bool:
         """Enable/disable WiFi."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             # Method 1: Use svc command (most reliable, requires root on some devices)
@@ -902,8 +881,8 @@ class ADBHandler:
     
     def get_wifi_enabled(self, serial: str) -> Optional[bool]:
         """Get current WiFi status."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return None
         
         try:
             cmd = [
@@ -921,8 +900,8 @@ class ADBHandler:
     
     def set_bluetooth_enabled(self, serial: str, enabled: bool) -> bool:
         """Enable/disable Bluetooth."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return True
+        if not self.adb_path:
+            return False
         
         try:
             # Method 1: Use svc command (most reliable, requires root on some devices)
@@ -956,8 +935,8 @@ class ADBHandler:
     
     def get_bluetooth_enabled(self, serial: str) -> Optional[bool]:
         """Get current Bluetooth status."""
-        if self.mock_mode or serial.startswith("MOCK"):
-            return False
+        if not self.adb_path:
+            return None
         
         try:
             cmd = [
