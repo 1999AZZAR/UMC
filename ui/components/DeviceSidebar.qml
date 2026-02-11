@@ -34,6 +34,7 @@ Rectangle {
             Layout.fillWidth: true; Layout.margins: Style.spacingSmall
             height: connectExpanded ? 180 : 36
             radius: 4; color: Style.surfaceLight
+            z: connectExpanded ? 100 : 1 // Bring to front when expanded
             property bool connectExpanded: false
             Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             
