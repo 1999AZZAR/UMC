@@ -99,10 +99,11 @@ class BackendBridge(QObject):
     launchModeChanged = Signal(str, arguments=['mode'])
     launchWithScreenOffChanged = Signal(bool, arguments=['enabled'])
     audioForwardingChanged = Signal(bool, arguments=['enabled'])
-    currentProfileChanged = Signal(str, arguments=['profile'])
-    profilesChanged = Signal(list, arguments=['profiles'])
+    currentProfileChanged = Signal(str)
+    profilesChanged = Signal(list)
+    currentDeviceChanged = Signal(str)
     
-    # Internal Signals to trigger worker
+    # Internal Signals
     requestDevices = Signal()
     requestPackages = Signal(str)
     requestToggleScreen = Signal(str)
@@ -219,7 +220,7 @@ class BackendBridge(QObject):
         if self._current_profile != p: self._current_profile = p; self.currentProfileChanged.emit(p)
     @Property(list, notify=profilesChanged)
     def profiles(self): return self._profiles
-    @Property(str, notify=statusMessage)
+    @Property(str, notify=currentDeviceChanged)
     def currentDeviceSerial(self): return self._current_device_serial
     @Property(QObject, constant=True)
     def packagesModel(self): return self._package_model
@@ -229,7 +230,8 @@ class BackendBridge(QObject):
     def refresh_devices(self): self.requestDevices.emit()
     @Slot(str)
     def select_device(self, serial):
-        self._current_device_serial = serial; self.statusMessage.emit(f"Selected: {serial}")
+        self._current_device_serial = serial; self.currentDeviceChanged.emit(serial)
+        self.statusMessage.emit(f"Selected: {serial}")
         self._package_model.clear(); self.requestPackages.emit(serial)
     @Slot(str)
     def toggle_screen(self, serial):

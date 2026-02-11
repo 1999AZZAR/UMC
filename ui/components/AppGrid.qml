@@ -168,6 +168,7 @@ Item {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: bridge.launch_app(packageId)
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        
                         onPressAndHold: {
                             if (mouse.button === Qt.RightButton) {
                                 batchMenu.open()
@@ -175,6 +176,7 @@ Item {
                         }
                     }
                     
+                    // Batch launch menu
                     Menu {
                         id: batchMenu
                         y: parent.height
@@ -211,7 +213,8 @@ Item {
     // Empty State
     Item {
         anchors.centerIn: parent
-        visible: bridge && bridge.packagesModel.rowCount() === 0 && searchField.text === ""
+        // FIX: Only show if NO device is selected.
+        visible: bridge && bridge.currentDeviceSerial === ""
         width: 300
         height: 200
         ColumnLayout {
