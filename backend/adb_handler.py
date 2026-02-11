@@ -68,9 +68,9 @@ class ADBHandler:
     def get_device_status_info(self, serial: str) -> Dict[str, any]:
         """Deep status gathering with robust parsing."""
         info = {
-            "battery_level": None,
+            "battery_level": 0,
             "battery_status": "unknown",
-            "temperature": None,
+            "temperature": 0,
             "storage": None,
             "network_type": "wifi" if ":" in serial else "usb",
             "width": 1080,
@@ -84,60 +84,57 @@ class ADBHandler:
             "bluetooth_enabled": False
         }
         
-        try:
-            # 1. Battery & Temp (Using precise regex)
-            batt_out = subprocess.run([self.adb_path, "-s", serial, "shell", "dumpsys", "battery"], capture_output=True, text=True, timeout=5).stdout
-            level, scale = 100, 100
-            for line in batt_out.split('\n'):
-                line = line.strip().lower()
-                if line.startswith('level:'):
-                    try: level = int(line.split(':')[1].strip())
-                    except: pass
-                elif line.startswith('scale:'):
-                    try: scale = int(line.split(':')[1].strip())
-                    except: pass
-                elif line.startswith('temperature:'):
-                    try: info["temperature"] = int(line.split(':')[1].strip()) / 10.0
-                    except: pass
-                elif line.startswith('status:'):
-                    s_code = line.split(':')[1].strip()
-                    info["battery_status"] = {"2":"charging","3":"discharging","4":"not charging","5":"full"}.get(s_code, "unknown")
-            
-            # Calculate actual percentage based on scale
-            if scale > 0:
-                info["battery_level"] = int((level * 100) / scale)
-            else:
-                info["battery_level"] = level
+        if not self.adb_path: return info
 
-            # 2. Storage
-            df_out = subprocess.run([self.adb_path, "-s", serial, "shell", "df", "/data"], capture_output=True, text=True, timeout=5).stdout.split('\n')
-            if len(df_out) > 1:
-                for line in df_out:
+        try:
+            # 1. Battery Info (The primary culprit for 5% vs 100%)
+            batt_res = subprocess.run([self.adb_path, "-s", serial, "shell", "dumpsys", "battery"], capture_output=True, text=True, timeout=5)
+            if batt_res.returncode == 0:
+                level_match = re.search(r'level:\s+(\d+)', batt_res.stdout)
+                scale_match = re.search(r'scale:\s+(\d+)', batt_res.stdout)
+                temp_match = re.search(r'temperature:\s+(\d+)', batt_res.stdout)
+                status_match = re.search(r'status:\s+(\d+)', batt_res.stdout)
+                
+                level = int(level_match.group(1)) if level_match else 100
+                scale = int(scale_match.group(1)) if scale_match else 100
+                if scale > 0:
+                    info["battery_level"] = int((level * 100) / scale)
+                
+                if temp_match:
+                    info["temperature"] = int(temp_match.group(1)) / 10.0
+                
+                if status_match:
+                    s_code = status_match.group(1)
+                    info["battery_status"] = {"2":"charging","3":"discharging","4":"not charging","5":"full"}.get(s_code, "unknown")
+
+            # 2. Storage Info
+            df_res = subprocess.run([self.adb_path, "-s", serial, "shell", "df", "/data"], capture_output=True, text=True, timeout=5)
+            if df_res.returncode == 0:
+                for line in df_res.stdout.split('\n'):
                     if '/data' in line:
                         p = line.split()
-                        if len(p) >= 4: 
+                        if len(p) >= 4:
                             try:
+                                # Standard df output: Filesystem Size Used Avail Use% Mounted on
+                                # We try to find the index of 'data' to be safe
                                 info["storage"] = {"total": int(p[1])//1024, "used": int(p[2])//1024}
                                 break
                             except: pass
 
-            # 3. Display info
+            # 3. Display, Settings, etc.
             info["width"], info["height"] = self.get_device_resolution(serial)
             info["density"] = self.get_device_density(serial)
             
-            # 4. Settings (Brightness & Rotation)
+            # Simple settings reads
             try:
-                b_out = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "screen_brightness"], capture_output=True, text=True, timeout=2).stdout.strip()
-                if b_out.isdigit(): info["brightness"] = int(b_out)
-                
-                r_out = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], capture_output=True, text=True, timeout=2).stdout.strip()
-                info["rotation_locked"] = (r_out == "1")
-                
-                a_out = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "global", "airplane_mode_on"], capture_output=True, text=True, timeout=2).stdout.strip()
-                info["airplane_mode"] = (a_out == "1")
+                info["brightness"] = int(subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "screen_brightness"], capture_output=True, text=True, timeout=2).stdout.strip() or 128)
+                rot = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], capture_output=True, text=True, timeout=2).stdout.strip()
+                info["rotation_locked"] = (rot == "1")
+                air = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "global", "airplane_mode_on"], capture_output=True, text=True, timeout=2).stdout.strip()
+                info["airplane_mode"] = (air == "1")
             except: pass
 
-            # 5. Volume
+            # Volume
             vol_out = subprocess.run([self.adb_path, "-s", serial, "shell", "media", "volume", "--get", "--stream", "3"], capture_output=True, text=True, timeout=2).stdout
             v_match = re.search(r'volume is (\d+)', vol_out)
             if v_match: info["volume_music"] = int(v_match.group(1))
@@ -166,14 +163,7 @@ class ADBHandler:
             import zipfile
             with zipfile.ZipFile(temp_apk, 'r') as z:
                 # Wide search for icons
-                icon_targets = [
-                    'res/mipmap-xxxhdpi/ic_launcher.png',
-                    'res/mipmap-xxhdpi/ic_launcher.png',
-                    'res/mipmap-xhdpi/ic_launcher.png',
-                    'res/drawable-xxhdpi/ic_launcher.png',
-                    'res/drawable-xhdpi/ic_launcher.png'
-                ]
-                # Try specific targets first
+                icon_targets = ['res/mipmap-xxhdpi/ic_launcher.png', 'res/mipmap-xhdpi/ic_launcher.png', 'res/drawable-xhdpi/ic_launcher.png']
                 extracted = False
                 for target in icon_targets:
                     if target in z.namelist():
@@ -181,10 +171,9 @@ class ADBHandler:
                         extracted = True
                         break
                 
-                # Fallback to any ic_launcher
                 if not extracted:
                     for name in z.namelist():
-                        if 'ic_launcher' in name and name.endswith('.png'):
+                        if 'ic_launcher.png' in name and name.endswith('.png'):
                             with z.open(name) as zin, open(cache_file, 'wb') as fout: fout.write(zin.read())
                             extracted = True
                             break
