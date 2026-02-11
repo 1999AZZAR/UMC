@@ -6,8 +6,8 @@ import ".."
 Item {
     id: root
     
-    // Model state
-    readonly property bool isLoading: bridge && bridge.packagesModel.rowCount() === 0 && bridge.currentDeviceSerial !== ""
+    // Explicit loading state from bridge
+    readonly property bool loading: bridge && bridge.loading
 
     ColumnLayout {
         anchors.fill: parent
@@ -61,7 +61,7 @@ Item {
         StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: root.isLoading ? 1 : 0
+            currentIndex: root.loading ? 1 : 0
 
             // Grid View
             GridView {
@@ -151,7 +151,10 @@ Item {
             Item {
                 ColumnLayout {
                     anchors.centerIn: parent; spacing: 20
-                    BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: root.isLoading }
+                    BusyIndicator { 
+                        Layout.alignment: Qt.AlignHCenter
+                        running: root.loading 
+                    }
                     Text { text: "Decrypting Feed..."; color: Style.textSecondary; font: Style.subHeaderFont; Layout.alignment: Qt.AlignHCenter }
                 }
             }

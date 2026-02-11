@@ -13,6 +13,8 @@ class PackageModel(QAbstractListModel):
     NameRole = Qt.ItemDataRole.UserRole + 1
     PackageRole = Qt.ItemDataRole.UserRole + 2
     IconRole = Qt.ItemDataRole.UserRole + 3
+    
+    countChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -24,6 +26,9 @@ class PackageModel(QAbstractListModel):
         return { self.NameRole: b"name", self.PackageRole: b"packageId", self.IconRole: b"icon" }
 
     def rowCount(self, parent=QModelIndex()): return len(self._visible_packages)
+    
+    @Property(int, notify=countChanged)
+    def count(self): return len(self._visible_packages)
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not (0 <= index.row() < len(self._visible_packages)): return None
@@ -34,8 +39,11 @@ class PackageModel(QAbstractListModel):
         return None
 
     def setPackages(self, packages):
+        self.beginResetModel()
         self._all_packages = packages
-        self._apply_filter()
+        self._apply_filter_logic()
+        self.endResetModel()
+        self.countChanged.emit()
 
     @Property(str)
     def filterText(self): return self._filter_text
@@ -43,10 +51,12 @@ class PackageModel(QAbstractListModel):
     def filterText(self, text):
         if self._filter_text != text:
             self._filter_text = text
-            self._apply_filter()
+            self.beginResetModel()
+            self._apply_filter_logic()
+            self.endResetModel()
+            self.countChanged.emit()
 
-    def _apply_filter(self):
-        self.beginResetModel()
+    def _apply_filter_logic(self):
         if not self._filter_text:
             self._visible_packages = self._all_packages.copy()
         else:
@@ -55,7 +65,6 @@ class PackageModel(QAbstractListModel):
                 p for p in self._all_packages 
                 if q in p.get("name", "").lower() or q in p.get("package", "").lower()
             ]
-        self.endResetModel()
 
     def updateIcon(self, package_name, icon_path):
         for p in self._all_packages:
@@ -74,26 +83,26 @@ class PackageModel(QAbstractListModel):
         self._all_packages = []
         self._visible_packages = []
         self.endResetModel()
+        self.countChanged.emit()
 
 class BackendBridge(QObject):
     # Signals for UI
     devicesChanged = Signal(list, arguments=['devices'])
-    packagesChanged = Signal(list, arguments=['packages'])
-    iconReady = Signal(str, str, arguments=['pkg', 'iconPath'])
     deviceStatusChanged = Signal(str, dict, arguments=['serial', 'status'])
-    fileTransferProgress = Signal(str, str, int, arguments=['serial', 'operation', 'progress'])
-    fileTransferComplete = Signal(str, str, bool, arguments=['serial', 'operation', 'success'])
-    clipboardChanged = Signal(str, str, arguments=['serial', 'text'])
-    fileSelected = Signal(str, arguments=['filePath'])
-    screenshotReady = Signal(str, str, arguments=['serial', 'screenshotPath'])
-    deviceControlChanged = Signal(str, str, arguments=['serial', 'controlType'])
-    statusMessage = Signal(str, arguments=['message'])
-    launchModeChanged = Signal(str, arguments=['mode'])
-    launchWithScreenOffChanged = Signal(bool, arguments=['enabled'])
-    audioForwardingChanged = Signal(bool, arguments=['enabled'])
-    currentProfileChanged = Signal(str, arguments=['profile'])
-    profilesChanged = Signal(list, arguments=['profiles'])
+    fileTransferProgress = Signal(str, str, int)
+    fileTransferComplete = Signal(str, str, bool)
+    clipboardChanged = Signal(str, str)
+    fileSelected = Signal(str)
+    screenshotReady = Signal(str, str)
+    deviceControlChanged = Signal(str, str)
+    statusMessage = Signal(str)
+    launchModeChanged = Signal(str)
+    launchWithScreenOffChanged = Signal(bool)
+    audioForwardingChanged = Signal(bool)
+    currentProfileChanged = Signal(str)
+    profilesChanged = Signal(list)
     currentDeviceChanged = Signal(str)
+    loadingChanged = Signal(bool)
     
     # Internal Signals
     requestDevices = Signal()
@@ -119,17 +128,16 @@ class BackendBridge(QObject):
         self._scrcpy = ScrcpyHandler()
         self._current_device_serial = ""
         self._devices = []
-        self._packages = []
         self._launch_mode = "Tablet"
         self._launch_with_screen_off = False
         self._audio_forwarding = False
         self._current_profile = "Default"
         self._profiles = get_profile_names()
-        
         self._device_status = {}
         self._package_model = PackageModel()
         self._settings = QSettings("UMC", "DeviceManager")
         self._device_names = self._load_device_names()
+        self._is_loading = False
         
         self._clipboard_sync_enabled = {}
         self._clipboard_history = []
@@ -139,8 +147,7 @@ class BackendBridge(QObject):
         if app:
             self._clipboard = app.clipboard()
             self._last_clipboard_text = self._clipboard.text() if self._clipboard else ""
-            if self._clipboard:
-                self._clipboard.dataChanged.connect(self._on_desktop_clipboard_data_changed)
+            if self._clipboard: self._clipboard.dataChanged.connect(self._on_desktop_clipboard_data_changed)
         else:
             self._clipboard = None
             self._last_clipboard_text = ""
@@ -186,8 +193,6 @@ class BackendBridge(QObject):
     # Properties
     @Property(list, notify=devicesChanged)
     def devices(self): return self._devices
-    @Property(list, notify=packagesChanged)
-    def packages(self): return self._packages
     @Property(str, notify=launchModeChanged)
     def launchMode(self): return self._launch_mode
     @launchMode.setter
@@ -214,6 +219,8 @@ class BackendBridge(QObject):
     def currentDeviceSerial(self): return self._current_device_serial
     @Property(QObject, constant=True)
     def packagesModel(self): return self._package_model
+    @Property(bool, notify=loadingChanged)
+    def loading(self): return self._is_loading
 
     # Slots
     @Slot()
@@ -221,6 +228,7 @@ class BackendBridge(QObject):
     @Slot(str)
     def select_device(self, serial):
         self._current_device_serial = serial; self.currentDeviceChanged.emit(serial)
+        self._is_loading = True; self.loadingChanged.emit(True)
         self.statusMessage.emit(f"Selected: {serial}")
         self._package_model.clear(); self.requestPackages.emit(serial)
     @Slot(str)
@@ -254,10 +262,9 @@ class BackendBridge(QObject):
     def pull_file_from_device(self, s, r, l):
         if s and r and l: self.requestPullFile.emit(s, r, l)
     
-    # Handlers
+    # Internal Handlers
     @Slot(list)
     def _on_devices_ready(self, devices):
-        # FIX: Merge status into devices list for auto-updating UI
         for d in devices:
             s = d['serial']
             if s in self._device_names: d["custom_name"] = self._device_names[s]
@@ -268,7 +275,6 @@ class BackendBridge(QObject):
     @Slot(str, dict)
     def _on_device_status_ready(self, s, st):
         self._device_status[s] = st
-        # Trigger devicesChanged to refresh sidebar without expensive Connections
         for device in self._devices:
             if device['serial'] == s:
                 device["status_data"] = st
@@ -279,7 +285,10 @@ class BackendBridge(QObject):
 
     @Slot(str, list)
     def _on_packages_ready(self, serial, packages):
-        if serial == self._current_device_serial: self._package_model.setPackages(packages)
+        if serial == self._current_device_serial:
+            self._package_model.setPackages(packages)
+            self._is_loading = False; self.loadingChanged.emit(False)
+
     @Slot(str, str)
     def _on_icon_ready(self, pkg, path): self._package_model.updateIcon(pkg, path)
     @Slot(str, str, int)
@@ -293,7 +302,9 @@ class BackendBridge(QObject):
     @Slot(str, str)
     def _on_device_control_changed(self, s, c): self.deviceControlChanged.emit(s, c)
     @Slot(str)
-    def _on_worker_error(self, m): self.statusMessage.emit(f"Error: {m}")
+    def _on_worker_error(self, m): 
+        self.statusMessage.emit(f"Error: {m}")
+        self._is_loading = False; self.loadingChanged.emit(False)
     @Slot()
     def _on_desktop_clipboard_data_changed(self):
         try:
@@ -310,7 +321,7 @@ class BackendBridge(QObject):
             if t != self._clipboard.text():
                 self._clipboard.setText(t); self._last_clipboard_text = t; self._add_to_clipboard_history(t)
 
-    # Sync Getters (Non-blocking cache)
+    # Sync Getters
     @Slot(str, str, result=int)
     def get_volume(self, s, st): return self._device_status.get(s, {}).get(f"volume_{st}", 0)
     @Slot(str, result=int)
