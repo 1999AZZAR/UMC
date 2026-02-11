@@ -13,7 +13,6 @@ class PackageModel(QAbstractListModel):
     NameRole = Qt.ItemDataRole.UserRole + 1
     PackageRole = Qt.ItemDataRole.UserRole + 2
     IconRole = Qt.ItemDataRole.UserRole + 3
-    
     countChanged = Signal()
 
     def __init__(self, parent=None):
@@ -128,6 +127,7 @@ class BackendBridge(QObject):
         self._scrcpy = ScrcpyHandler()
         self._current_device_serial = ""
         self._devices = []
+        self._packages = []
         self._launch_mode = "Tablet"
         self._launch_with_screen_off = False
         self._audio_forwarding = False
@@ -221,7 +221,7 @@ class BackendBridge(QObject):
     @Property(bool, notify=loadingChanged)
     def loading(self): return self._is_loading
 
-    # Slots
+    # Slots for QML
     @Slot()
     def refresh_devices(self): self.requestDevices.emit()
     @Slot(str)
@@ -236,8 +236,8 @@ class BackendBridge(QObject):
     @Slot(str)
     def mirror_device(self, serial):
         if not serial: return
-        self._scrcpy.mirror(serial, forward_audio=self._audio_forwarding, 
-                           turn_screen_off=self._launch_with_screen_off, extra_flags=get_profile_flags(self._current_profile))
+        self._scrcpy.mirror(serial, width=1280, height=720, turn_screen_off=self._launch_with_screen_off, 
+                           forward_audio=self._audio_forwarding, extra_flags=get_profile_flags(self._current_profile))
     @Slot(str, str)
     def open_display(self, serial, mode):
         if not serial: return
@@ -251,6 +251,7 @@ class BackendBridge(QObject):
         self._scrcpy.launch_app(self._current_device_serial, package_name, width=w, height=h, 
                                dpi=d, turn_screen_off=self._launch_with_screen_off, 
                                forward_audio=self._audio_forwarding, extra_flags=get_profile_flags(self._current_profile))
+    @Slot(str, str)
     @Slot(str, str, str)
     def push_file_to_device(self, s, l, r=""):
         if not s or not l: return
@@ -259,7 +260,68 @@ class BackendBridge(QObject):
     @Slot(str, str, str)
     def pull_file_from_device(self, s, r, l):
         if s and r and l: self.requestPullFile.emit(s, r, l)
-    
+    @Slot(str)
+    def capture_screenshot(self, serial):
+        if serial: self.requestScreenshot.emit(serial)
+    @Slot(str, str, int)
+    def set_volume(self, s, st, l): self.requestSetVolume.emit(s, st, l)
+    @Slot(str, int)
+    def set_brightness(self, s, l): self.requestSetBrightness.emit(s, l)
+    @Slot(str, bool)
+    def set_rotation_lock(self, s, l): self.requestSetRotationLock.emit(s, l)
+    @Slot(str, bool)
+    def set_airplane_mode(self, s, e): self.requestSetAirplaneMode.emit(s, e)
+    @Slot(str, bool)
+    def set_wifi_enabled(self, s, e): self.requestSetWifi.emit(s, e)
+    @Slot(str, bool)
+    def set_bluetooth_enabled(self, s, e): self.requestSetBluetooth.emit(s, e)
+    @Slot(str, bool)
+    def set_clipboard_sync(self, s, e): self._clipboard_sync_enabled[s] = e
+    @Slot(str, result=bool)
+    def get_clipboard_sync(self, s): return self._clipboard_sync_enabled.get(s, False)
+    @Slot(result=list)
+    def get_clipboard_history(self): return self._clipboard_history.copy()
+    @Slot(str)
+    def request_file_selection(self, s):
+        path, _ = QFileDialog.getOpenFileName(None, "Select file", os.path.expanduser("~"), "All Files (*)")
+        if path: self.push_file_to_device(s, path)
+    @Slot(str)
+    def fetch_icon_for_package(self, p): self.requestIcon.emit(self._current_device_serial, p)
+    @Slot(str, result="QVariantMap")
+    def connect_wireless_device(self, a):
+        if ":" not in a: a = f"{a}:5555"
+        self.requestConnectWireless.emit(a)
+        return {"success": True, "message": "Connection attempt started"}
+    @Slot(str, str, result="QVariantMap")
+    def pair_wireless_device(self, a, c):
+        s, m = self._worker.adb_handler.pair_device(a, c)
+        return {"success": s, "message": m}
+    @Slot(str, result="QVariantMap")
+    def disconnect_wireless_device(self, a):
+        s, m = self._worker.adb_handler.disconnect_device(a)
+        self.requestDevices.emit()
+        return {"success": s, "message": m}
+    @Slot(str, str)
+    def set_device_name(self, s, n):
+        if s: self._device_names[s] = n; self._settings.setValue("device_names", json.dumps(self._device_names))
+        for d in self._devices:
+            if d.get("serial") == s: d["custom_name"] = n
+        self.devicesChanged.emit(self._devices)
+
+    # Sync Getters (Non-blocking cache)
+    @Slot(str, str, result=int)
+    def get_volume(self, s, st): return self._device_status.get(s, {}).get(f"volume_{st}", 0)
+    @Slot(str, result=int)
+    def get_brightness(self, s): return self._device_status.get(s, {}).get("brightness", 128)
+    @Slot(str, result=bool)
+    def get_rotation_lock(self, s): return self._device_status.get(s, {}).get("rotation_locked", False)
+    @Slot(str, result=bool)
+    def get_airplane_mode(self, s): return self._device_status.get(s, {}).get("airplane_mode", False)
+    @Slot(str, result=bool)
+    def get_wifi_enabled(self, s): return self._device_status.get(s, {}).get("wifi_enabled", True)
+    @Slot(str, result=bool)
+    def get_bluetooth_enabled(self, s): return self._device_status.get(s, {}).get("bluetooth_enabled", False)
+
     # Internal Handlers
     @Slot(list)
     def _on_devices_ready(self, devices):
@@ -267,7 +329,6 @@ class BackendBridge(QObject):
         if self._current_device_serial and self._current_device_serial not in serials:
             self._current_device_serial = ""; self.currentDeviceChanged.emit("")
             self._package_model.clear(); self.statusMessage.emit("Device disconnected")
-
         for d in devices:
             s = d['serial']
             if s in self._device_names: d["custom_name"] = self._device_names[s]
@@ -324,62 +385,6 @@ class BackendBridge(QObject):
             if t != self._clipboard.text():
                 self._clipboard.setText(t); self._last_clipboard_text = t; self._add_to_clipboard_history(t)
 
-    # Sync Getters
-    @Slot(str, str, result=int)
-    def get_volume(self, s, st): return self._device_status.get(s, {}).get(f"volume_{st}", 0)
-    @Slot(str, result=int)
-    def get_brightness(self, s): return self._device_status.get(s, {}).get("brightness", 128)
-    @Slot(str, result=bool)
-    def get_rotation_lock(self, s): return self._device_status.get(s, {}).get("rotation_locked", False)
-    @Slot(str, result=bool)
-    def get_airplane_mode(self, s): return self._device_status.get(s, {}).get("airplane_mode", False)
-    
-    # Setters
-    @Slot(str, str, int)
-    def set_volume(self, s, st, l): self.requestSetVolume.emit(s, st, l)
-    @Slot(str, int)
-    def set_brightness(self, s, l): self.requestSetBrightness.emit(s, l)
-    @Slot(str, bool)
-    def set_rotation_lock(self, s, l): self.requestSetRotationLock.emit(s, l)
-    @Slot(str, bool)
-    def set_airplane_mode(self, s, e): self.requestSetAirplaneMode.emit(s, e)
-    @Slot(str, bool)
-    def set_wifi_enabled(self, s, e): self.requestSetWifi.emit(s, e)
-    @Slot(str, bool)
-    def set_bluetooth_enabled(self, s, e): self.requestSetBluetooth.emit(s, e)
-    @Slot(str, bool)
-    def set_clipboard_sync(self, s, e): self._clipboard_sync_enabled[s] = e
-    @Slot(str, result=bool)
-    def get_clipboard_sync(self, s): return self._clipboard_sync_enabled.get(s, False)
-    @Slot(result=list)
-    def get_clipboard_history(self): return self._clipboard_history.copy()
-    @Slot(str)
-    def request_file_selection(self, s):
-        path, _ = QFileDialog.getOpenFileName(None, "Select file", os.path.expanduser("~"), "All Files (*)")
-        if path: self.push_file_to_device(s, path)
-    @Slot(str)
-    def fetch_icon_for_package(self, p): self.requestIcon.emit(self._current_device_serial, p)
-    @Slot(str, result="QVariantMap")
-    def connect_wireless_device(self, a):
-        if ":" not in a: a = f"{a}:5555"
-        self.requestConnectWireless.emit(a)
-        return {"success": True, "message": "Triggered connect"}
-    @Slot(str, str, result="QVariantMap")
-    def pair_wireless_device(self, a, c):
-        s, m = self._worker.adb_handler.pair_device(a, c)
-        return {"success": s, "message": m}
-    @Slot(str, result="QVariantMap")
-    def disconnect_wireless_device(self, a):
-        s, m = self._worker.adb_handler.disconnect_device(a)
-        self.requestDevices.emit()
-        return {"success": s, "message": m}
-    @Slot(str, str)
-    def set_device_name(self, s, n):
-        if s: self._device_names[s] = n; self._settings.setValue("device_names", json.dumps(self._device_names))
-        for d in self._devices:
-            if d.get("serial") == s: d["custom_name"] = n
-        self.devicesChanged.emit(self._devices)
-
     def _get_display_params(self, s, m):
         w, h, d = 1280, 800, 240
         if m == "Desktop": w, h, d = 1920, 1080, 240
@@ -396,6 +401,7 @@ class BackendBridge(QObject):
             self._clipboard_history.insert(0, t)
             if len(self._clipboard_history) > self._max_clipboard_history: self._clipboard_history = self._clipboard_history[:self._max_clipboard_history]
     def cleanup(self):
+        self._scrcpy.stop_all()
         if self._worker: self._worker.stop()
         if self._timer: self._timer.stop()
         if self._thread and self._thread.isRunning():
