@@ -71,12 +71,17 @@ Item {
                 
                 delegate: Item {
                     width: 140; height: 160
+                    
                     Rectangle {
+                        id: cardBg
                         width: 120; height: 140; anchors.centerIn: parent
                         color: Style.surface; radius: Style.cornerRadius
                         border.color: mouseArea.containsMouse ? Style.accent : Style.surfaceLight
                         border.width: 1
                         
+                        scale: mouseArea.containsMouse ? 1.02 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+
                         ColumnLayout {
                             anchors.fill: parent; anchors.margins: 12; spacing: 8
                             Rectangle {
@@ -84,6 +89,7 @@ Item {
                                 width: 56; height: 56; radius: 18
                                 color: Style.surfaceLight; clip: true
                                 Image {
+                                    id: appIconImage
                                     anchors.fill: parent; anchors.margins: 2
                                     source: icon ? "file://" + icon : ""
                                     fillMode: Image.PreserveAspectFit
@@ -94,7 +100,7 @@ Item {
                                     anchors.centerIn: parent
                                     text: (name || "").substring(0, 1).toUpperCase()
                                     color: Style.accent; font.bold: true; font.pixelSize: 24
-                                    visible: !icon
+                                    visible: !icon || appIconImage.status !== Image.Ready
                                 }
                             }
                             Text {
@@ -103,9 +109,39 @@ Item {
                                 elide: Text.ElideMiddle; maximumLineCount: 2; font: Style.bodySmallFont
                             }
                         }
+                        
                         MouseArea {
-                            id: mouseArea; anchors.fill: parent; hoverEnabled: true
+                            id: mouseArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: bridge.launch_app(packageId)
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onPressAndHold: if (mouse.button === Qt.RightButton) batchMenu.open()
+                        }
+                        
+                        Menu {
+                            id: batchMenu; y: parent.height
+                            background: Rectangle { color: Style.surface; border.color: Style.divider; radius: 4 }
+                            MenuItem {
+                                text: "Launch on Selected Device"; font: Style.bodySmallFont
+                                onTriggered: bridge.launch_app(packageId)
+                                contentItem: Row {
+                                    spacing: 8; leftPadding: 8
+                                    Icon { name: "play_arrow"; size: 14; color: parent.parent.highlighted ? Style.accent : Style.textSecondary }
+                                    Text { text: parent.parent.text; font: parent.parent.font; color: parent.parent.highlighted ? Style.accent : Style.textPrimary }
+                                }
+                            }
+                            MenuItem {
+                                text: "Launch on All Devices"; font: Style.bodySmallFont
+                                onTriggered: {
+                                    var serials = [];
+                                    for (var i = 0; i < bridge.devices.length; i++) serials.push(bridge.devices[i].serial);
+                                    bridge.launch_app_on_multiple_devices(packageId, serials);
+                                }
+                                contentItem: Row {
+                                    spacing: 8; leftPadding: 8
+                                    Icon { name: "devices"; size: 14; color: parent.parent.highlighted ? Style.accent : Style.textSecondary }
+                                    Text { text: parent.parent.text; font: parent.parent.font; color: parent.parent.highlighted ? Style.accent : Style.textPrimary }
+                                }
+                            }
                         }
                     }
                 }
@@ -115,14 +151,8 @@ Item {
             Item {
                 ColumnLayout {
                     anchors.centerIn: parent; spacing: 20
-                    BusyIndicator {
-                        Layout.alignment: Qt.AlignHCenter
-                        running: root.isLoading
-                    }
-                    Text {
-                        text: "Decrypting Feed..."; color: Style.textSecondary
-                        font: Style.subHeaderFont; Layout.alignment: Qt.AlignHCenter
-                    }
+                    BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: root.isLoading }
+                    Text { text: "Decrypting Feed..."; color: Style.textSecondary; font: Style.subHeaderFont; Layout.alignment: Qt.AlignHCenter }
                 }
             }
         }
