@@ -74,8 +74,10 @@ Item {
                                 }
                             }
                             
+                            // App Label
                             Text {
-                                Layout.fillWidth: true; text: name || packageId || ""; color: Style.textPrimary
+                                Layout.fillWidth: true; topPadding: 4
+                                text: name || packageId || ""; color: Style.textPrimary
                                 font: Style.bodySmallFont; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter
                                 elide: Text.ElideRight; maximumLineCount: 2
                             }
@@ -103,7 +105,7 @@ Item {
                 ColumnLayout {
                     anchors.centerIn: parent; spacing: 24
                     BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: root.loading; palette.dark: Style.accent }
-                    Text { text: "SYNCING DATA..."; color: Style.textSecondary; font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
+                    Text { text: "SYNCING DATA..."; color: Style.textSecondary; font.pixelSize: 10; font.letterSpacing: 1.5; font.weight: Font.Medium; Layout.alignment: Qt.AlignHCenter; opacity: 0.6 }
                 }
             }
         }
