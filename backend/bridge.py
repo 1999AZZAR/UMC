@@ -902,6 +902,122 @@ class BackendBridge(QObject):
         except Exception:
             return False
     
+    # ==================== Wireless ADB Connection Methods ====================
+    
+    @Slot(str, result=str)
+    def get_device_ip(self, serial: str) -> str:
+        """Get the IP address of a connected device."""
+        try:
+            if not serial:
+                return ""
+            ip = self._adb_handler.get_device_ip(serial)
+            return ip if ip else ""
+        except Exception:
+            return ""
+    
+    @Slot(str, int, result=bool)
+    @Slot(str, result=bool)
+    def enable_tcpip_mode(self, serial: str, port: int = 5555) -> bool:
+        """Enable TCP/IP mode on a USB-connected device."""
+        try:
+            if not serial:
+                self.statusMessage.emit("No device serial provided")
+                return False
+            
+            self.statusMessage.emit(f"Enabling TCP/IP mode on {serial}...")
+            success = self._adb_handler.enable_tcpip(serial, port)
+            
+            if success:
+                # Try to get the device IP
+                ip = self._adb_handler.get_device_ip(serial)
+                if ip:
+                    self.statusMessage.emit(f"TCP/IP enabled. Connect to {ip}:{port}")
+                else:
+                    self.statusMessage.emit(f"TCP/IP enabled on port {port}. Get device IP from WiFi settings.")
+            else:
+                self.statusMessage.emit("Failed to enable TCP/IP mode")
+            
+            return success
+        except Exception as e:
+            self.statusMessage.emit(f"Error: {str(e)}")
+            return False
+    
+    @Slot(str, result="QVariantMap")
+    def connect_wireless_device(self, address: str) -> dict:
+        """
+        Connect to a device wirelessly.
+        Returns dict with 'success' and 'message' keys.
+        """
+        try:
+            if not address:
+                return {"success": False, "message": "No address provided"}
+            
+            # Add default port if not specified
+            if ":" not in address:
+                address = f"{address}:5555"
+            
+            self.statusMessage.emit(f"Connecting to {address}...")
+            success, message = self._adb_handler.connect_wireless(address)
+            
+            self.statusMessage.emit(message)
+            
+            if success:
+                # Trigger device refresh
+                self.requestDevices.emit()
+            
+            return {"success": success, "message": message}
+        except Exception as e:
+            msg = f"Error: {str(e)}"
+            self.statusMessage.emit(msg)
+            return {"success": False, "message": msg}
+    
+    @Slot(str, str, result="QVariantMap")
+    def pair_wireless_device(self, address: str, pairing_code: str) -> dict:
+        """
+        Pair with a device using Android 11+ wireless debugging.
+        Returns dict with 'success' and 'message' keys.
+        """
+        try:
+            if not address:
+                return {"success": False, "message": "No address provided"}
+            if not pairing_code:
+                return {"success": False, "message": "No pairing code provided"}
+            
+            self.statusMessage.emit(f"Pairing with {address}...")
+            success, message = self._adb_handler.pair_device(address, pairing_code)
+            
+            self.statusMessage.emit(message)
+            return {"success": success, "message": message}
+        except Exception as e:
+            msg = f"Error: {str(e)}"
+            self.statusMessage.emit(msg)
+            return {"success": False, "message": msg}
+    
+    @Slot(str, result="QVariantMap")
+    def disconnect_wireless_device(self, address: str) -> dict:
+        """
+        Disconnect a wirelessly connected device.
+        Returns dict with 'success' and 'message' keys.
+        """
+        try:
+            if not address:
+                return {"success": False, "message": "No address provided"}
+            
+            self.statusMessage.emit(f"Disconnecting {address}...")
+            success, message = self._adb_handler.disconnect_device(address)
+            
+            self.statusMessage.emit(message)
+            
+            if success:
+                # Trigger device refresh
+                self.requestDevices.emit()
+            
+            return {"success": success, "message": message}
+        except Exception as e:
+            msg = f"Error: {str(e)}"
+            self.statusMessage.emit(msg)
+            return {"success": False, "message": msg}
+    
     def cleanup(self):
         """Stops the worker thread gracefully."""
         try:

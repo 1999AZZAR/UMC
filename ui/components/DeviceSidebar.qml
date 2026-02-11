@@ -58,6 +58,273 @@ Rectangle {
             color: Style.divider
         }
 
+        // Wireless Connection Section
+        Rectangle {
+            id: connectSection
+            Layout.fillWidth: true
+            Layout.margins: Style.spacingSmall
+            height: connectExpanded ? 180 : 36
+            radius: 4
+            color: Style.surfaceLight
+            
+            property bool connectExpanded: false
+            
+            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            
+            // Header click area
+            MouseArea {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: 36
+                cursorShape: Qt.PointingHandCursor
+                onClicked: connectSection.connectExpanded = !connectSection.connectExpanded
+            }
+            
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 8
+                
+                // Header row
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    
+                    Icon {
+                        name: "wifi"
+                        size: 14
+                        color: Style.accent
+                    }
+                    
+                    Text {
+                        text: "Connect Device"
+                        font.pixelSize: 11
+                        font.weight: Font.Medium
+                        color: Style.textPrimary
+                        Layout.fillWidth: true
+                    }
+                    
+                    Icon {
+                        name: "expand_more"
+                        size: 14
+                        color: Style.textSecondary
+                        rotation: connectSection.connectExpanded ? 180 : 0
+                        Behavior on rotation { NumberAnimation { duration: 200 } }
+                    }
+                }
+                
+                // Expanded content
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    visible: connectSection.connectExpanded
+                    opacity: connectSection.connectExpanded ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    
+                    // IP Address input
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        
+                        TextField {
+                            id: ipAddressField
+                            Layout.fillWidth: true
+                            placeholderText: "IP:port (e.g., 192.168.1.100:5555)"
+                            font.pixelSize: 10
+                            height: 28
+                            
+                            background: Rectangle {
+                                color: Style.surface
+                                radius: 2
+                                border.color: ipAddressField.activeFocus ? Style.accent : Style.divider
+                                border.width: 1
+                            }
+                            
+                            onAccepted: {
+                                if (text && bridge) {
+                                    bridge.connect_wireless_device(text)
+                                }
+                            }
+                        }
+                        
+                        Rectangle {
+                            width: 28
+                            height: 28
+                            radius: 2
+                            color: connectBtnArea.containsMouse ? Style.accent : Style.surface
+                            border.color: Style.divider
+                            border.width: connectBtnArea.containsMouse ? 0 : 1
+                            
+                            Icon {
+                                anchors.centerIn: parent
+                                name: "link"
+                                size: 12
+                                color: connectBtnArea.containsMouse ? "white" : Style.textSecondary
+                            }
+                            
+                            MouseArea {
+                                id: connectBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (ipAddressField.text && bridge) {
+                                        bridge.connect_wireless_device(ipAddressField.text)
+                                    }
+                                }
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: "Connect"
+                                ToolTip.delay: 500
+                            }
+                        }
+                    }
+                    
+                    // Android 11+ Pairing section
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: Style.divider
+                    }
+                    
+                    Text {
+                        text: "Android 11+ Pairing"
+                        font.pixelSize: 9
+                        color: Style.textSecondary
+                    }
+                    
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        
+                        TextField {
+                            id: pairAddressField
+                            Layout.fillWidth: true
+                            placeholderText: "Pair IP:port"
+                            font.pixelSize: 10
+                            height: 26
+                            
+                            background: Rectangle {
+                                color: Style.surface
+                                radius: 2
+                                border.color: pairAddressField.activeFocus ? Style.accent : Style.divider
+                                border.width: 1
+                            }
+                        }
+                        
+                        TextField {
+                            id: pairingCodeField
+                            Layout.preferredWidth: 60
+                            placeholderText: "Code"
+                            font.pixelSize: 10
+                            height: 26
+                            maximumLength: 6
+                            
+                            background: Rectangle {
+                                color: Style.surface
+                                radius: 2
+                                border.color: pairingCodeField.activeFocus ? Style.accent : Style.divider
+                                border.width: 1
+                            }
+                            
+                            onAccepted: {
+                                if (pairAddressField.text && text && bridge) {
+                                    bridge.pair_wireless_device(pairAddressField.text, text)
+                                }
+                            }
+                        }
+                        
+                        Rectangle {
+                            width: 26
+                            height: 26
+                            radius: 2
+                            color: pairBtnArea.containsMouse ? Style.accent : Style.surface
+                            border.color: Style.divider
+                            border.width: pairBtnArea.containsMouse ? 0 : 1
+                            
+                            Text {
+                                anchors.centerIn: parent
+                                text: "P"
+                                font.pixelSize: 10
+                                font.weight: Font.Bold
+                                color: pairBtnArea.containsMouse ? "white" : Style.textSecondary
+                            }
+                            
+                            MouseArea {
+                                id: pairBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (pairAddressField.text && pairingCodeField.text && bridge) {
+                                        bridge.pair_wireless_device(pairAddressField.text, pairingCodeField.text)
+                                    }
+                                }
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: "Pair Device"
+                                ToolTip.delay: 500
+                            }
+                        }
+                    }
+                    
+                    // Enable TCP/IP on USB device
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: Style.divider
+                    }
+                    
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        
+                        Text {
+                            text: "USB to WiFi:"
+                            font.pixelSize: 9
+                            color: Style.textSecondary
+                        }
+                        
+                        Item { Layout.fillWidth: true }
+                        
+                        Rectangle {
+                            width: 80
+                            height: 22
+                            radius: 2
+                            color: tcpipBtnArea.containsMouse ? Style.accent : Style.surface
+                            border.color: Style.divider
+                            border.width: tcpipBtnArea.containsMouse ? 0 : 1
+                            
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Enable TCP/IP"
+                                font.pixelSize: 9
+                                color: tcpipBtnArea.containsMouse ? "white" : Style.textSecondary
+                            }
+                            
+                            MouseArea {
+                                id: tcpipBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (bridge && bridge.currentDeviceSerial) {
+                                        var ip = bridge.get_device_ip(bridge.currentDeviceSerial)
+                                        bridge.enable_tcpip_mode(bridge.currentDeviceSerial, 5555)
+                                        if (ip) {
+                                            ipAddressField.text = ip + ":5555"
+                                        }
+                                    }
+                                }
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: "Enable TCP/IP on selected USB device"
+                                ToolTip.delay: 500
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Section Title: Devices
         Item {
             Layout.fillWidth: true

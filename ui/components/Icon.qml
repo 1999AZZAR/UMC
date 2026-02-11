@@ -343,6 +343,37 @@ Item {
                 ctx.lineTo(cx + 2, cy + 4);
                 ctx.stroke();
             }
+            else if (root.name === "link" || root.name === "connect") {
+                // Link/chain icon
+                ctx.beginPath();
+                ctx.arc(cx - 3, cy, 3, Math.PI * 0.5, Math.PI * 1.5);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx + 3, cy, 3, -Math.PI * 0.5, Math.PI * 0.5);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx - 3, cy - 3);
+                ctx.lineTo(cx + 3, cy - 3);
+                ctx.moveTo(cx - 3, cy + 3);
+                ctx.lineTo(cx + 3, cy + 3);
+                ctx.stroke();
+            }
+            else if (root.name === "disconnect") {
+                // Broken link icon
+                ctx.beginPath();
+                ctx.arc(cx - 4, cy, 3, Math.PI * 0.5, Math.PI * 1.5);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx + 4, cy, 3, -Math.PI * 0.5, Math.PI * 0.5);
+                ctx.stroke();
+                // X mark in center
+                ctx.beginPath();
+                ctx.moveTo(cx - 2, cy - 2);
+                ctx.lineTo(cx + 2, cy + 2);
+                ctx.moveTo(cx + 2, cy - 2);
+                ctx.lineTo(cx - 2, cy + 2);
+                ctx.stroke();
+            }
             else if (root.name === "volume_down") {
                 // Speaker with X
                 ctx.beginPath();

@@ -951,3 +951,173 @@ class ADBHandler:
             return None
         except Exception as e:
             return None
+
+    # ==================== Wireless ADB Connection Methods ====================
+
+    def enable_tcpip(self, serial: str, port: int = 5555) -> bool:
+        """
+        Enable TCP/IP mode on a USB-connected device.
+        After this, the device can be connected wirelessly via `adb connect IP:port`.
+        """
+        if not self.adb_path:
+            return False
+        
+        try:
+            cmd = [self.adb_path, "-s", serial, "tcpip", str(port)]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            return result.returncode == 0 or "restarting" in result.stdout.lower()
+        except Exception as e:
+            print(f"Error enabling TCP/IP mode for {serial}: {e}")
+            return False
+
+    def get_device_ip(self, serial: str) -> Optional[str]:
+        """
+        Get the IP address of a connected device.
+        Returns the first non-loopback IPv4 address found.
+        """
+        if not self.adb_path:
+            return None
+        
+        try:
+            # Method 1: Try ip addr show wlan0
+            cmd = [self.adb_path, "-s", serial, "shell", "ip", "addr", "show", "wlan0"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                # Parse output for inet address
+                for line in result.stdout.split('\n'):
+                    if 'inet ' in line and '127.' not in line:
+                        # Format: inet 192.168.1.100/24 brd ...
+                        match = re.search(r'inet\s+(\d+\.\d+\.\d+\.\d+)', line)
+                        if match:
+                            return match.group(1)
+            
+            # Method 2: Try ifconfig wlan0
+            cmd = [self.adb_path, "-s", serial, "shell", "ifconfig", "wlan0"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                match = re.search(r'inet\s+addr:(\d+\.\d+\.\d+\.\d+)', result.stdout)
+                if match:
+                    return match.group(1)
+            
+            # Method 3: Try dumpsys wifi
+            cmd = [self.adb_path, "-s", serial, "shell", "dumpsys", "wifi"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                match = re.search(r'ip_address=(\d+\.\d+\.\d+\.\d+)', result.stdout)
+                if match:
+                    return match.group(1)
+            
+            return None
+        except Exception as e:
+            print(f"Error getting device IP for {serial}: {e}")
+            return None
+
+    def pair_device(self, address: str, pairing_code: str) -> tuple[bool, str]:
+        """
+        Pair with a device using Android 11+ wireless debugging.
+        
+        Args:
+            address: IP:port shown in wireless debugging settings (e.g., "192.168.1.100:37123")
+            pairing_code: 6-digit pairing code shown on device
+        
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        if not self.adb_path:
+            return False, "ADB not found"
+        
+        try:
+            # Use echo to pipe the pairing code
+            cmd = [self.adb_path, "pair", address]
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            # Send the pairing code
+            stdout, stderr = process.communicate(input=pairing_code + "\n", timeout=30)
+            
+            output = stdout + stderr
+            
+            if "Successfully paired" in output or "successfully paired" in output.lower():
+                return True, "Successfully paired with device"
+            elif "Failed" in output or "failed" in output.lower():
+                return False, f"Pairing failed: {output.strip()}"
+            else:
+                # Check if returncode indicates success
+                if process.returncode == 0:
+                    return True, "Pairing completed"
+                return False, f"Unknown result: {output.strip()}"
+                
+        except subprocess.TimeoutExpired:
+            return False, "Pairing timed out"
+        except Exception as e:
+            return False, f"Error: {str(e)}"
+
+    def connect_wireless(self, address: str) -> tuple[bool, str]:
+        """
+        Connect to a device wirelessly.
+        
+        Args:
+            address: IP:port of the device (e.g., "192.168.1.100:5555")
+        
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        if not self.adb_path:
+            return False, "ADB not found"
+        
+        try:
+            cmd = [self.adb_path, "connect", address]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            output = result.stdout + result.stderr
+            
+            if "connected" in output.lower() and "cannot" not in output.lower():
+                return True, f"Connected to {address}"
+            elif "already connected" in output.lower():
+                return True, f"Already connected to {address}"
+            elif "refused" in output.lower():
+                return False, "Connection refused. Is wireless debugging enabled?"
+            elif "unable to connect" in output.lower() or "cannot connect" in output.lower():
+                return False, f"Unable to connect to {address}"
+            else:
+                return False, output.strip() if output.strip() else "Connection failed"
+                
+        except subprocess.TimeoutExpired:
+            return False, "Connection timed out"
+        except Exception as e:
+            return False, f"Error: {str(e)}"
+
+    def disconnect_device(self, address: str) -> tuple[bool, str]:
+        """
+        Disconnect a wirelessly connected device.
+        
+        Args:
+            address: IP:port of the device
+        
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        if not self.adb_path:
+            return False, "ADB not found"
+        
+        try:
+            cmd = [self.adb_path, "disconnect", address]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            output = result.stdout + result.stderr
+            
+            if "disconnected" in output.lower() or result.returncode == 0:
+                return True, f"Disconnected from {address}"
+            else:
+                return False, output.strip() if output.strip() else "Disconnect failed"
+                
+        except Exception as e:
+            return False, f"Error: {str(e)}"
