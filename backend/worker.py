@@ -27,6 +27,7 @@ class ADBWorker(QObject):
         self.adb_handler = ADBHandler()
         self.adb_path = self.adb_handler.adb_path
         self._should_stop = False
+        self._fetching_icons = set() # Track icons currently being fetched
         
         cache_dir = QStandardPaths.writableLocation(QStandardPaths.CacheLocation)
         self.icon_cache_dir = os.path.join(cache_dir, "umc", "icons")
@@ -72,17 +73,27 @@ class ADBWorker(QObject):
     def toggle_device_screen(self, serial: str):
         if self._should_stop or not serial: return
         try:
-            # KEYCODE_POWER = 26
             subprocess.run([self.adb_path, "-s", serial, "shell", "input", "keyevent", "26"], timeout=5)
             self.deviceControlChanged.emit(serial, "screen_toggle")
         except: pass
 
     @Slot(str, str)
     def fetch_icon(self, serial, package_name):
-        if self._should_stop: return
-        path = self.adb_handler.get_app_icon_path(serial, package_name, self.icon_cache_dir)
-        if path and not self._should_stop:
-            self.iconReady.emit(package_name, path)
+        if self._should_stop or package_name in self._fetching_icons: return
+        
+        # Check cache first
+        cache_file = os.path.join(self.icon_cache_dir, f"{package_name}.png")
+        if os.path.exists(cache_file):
+            self.iconReady.emit(package_name, cache_file)
+            return
+
+        self._fetching_icons.add(package_name)
+        try:
+            path = self.adb_handler.get_app_icon_path(serial, package_name, self.icon_cache_dir)
+            if path and not self._should_stop:
+                self.iconReady.emit(package_name, path)
+        finally:
+            self._fetching_icons.remove(package_name)
 
     @Slot(str, str, str)
     def push_file(self, serial, local, remote):
@@ -108,7 +119,9 @@ class ADBWorker(QObject):
     @Slot(str)
     def capture_screenshot(self, serial):
         from datetime import datetime
-        path = os.path.join(self.screenshot_dir, f"screenshot_{serial}_{datetime.now().strftime('%H%M%S')}.png")
+        # Use ISO-like format for sortable and unique filenames
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        path = os.path.join(self.screenshot_dir, f"screenshot_{serial}_{ts}.png")
         if self.adb_handler.capture_screenshot(serial, path):
             self.screenshotReady.emit(serial, path)
 

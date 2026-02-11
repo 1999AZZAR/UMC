@@ -133,8 +133,20 @@ class ADBHandler:
             
             import zipfile
             with zipfile.ZipFile(temp_apk, 'r') as z:
-                # Common density folders
-                for target in ['res/mipmap-xxhdpi/ic_launcher.png', 'res/mipmap-xhdpi/ic_launcher.png', 'res/drawable-xhdpi/ic_launcher.png']:
+                # Search widely for launcher icon
+                targets = [
+                    'res/mipmap-xxxhdpi/ic_launcher.png',
+                    'res/mipmap-xxhdpi/ic_launcher.png',
+                    'res/mipmap-xhdpi/ic_launcher.png',
+                    'res/drawable-xxhdpi/ic_launcher.png',
+                    'res/drawable-xhdpi/ic_launcher.png'
+                ]
+                # Also try adaptive icons
+                for name in z.namelist():
+                    if 'ic_launcher.png' in name:
+                        targets.append(name)
+                
+                for target in targets:
                     if target in z.namelist():
                         with z.open(target) as zin, open(cache_file, 'wb') as fout: fout.write(zin.read())
                         break
@@ -143,15 +155,18 @@ class ADBHandler:
         except: return None
 
     def push_file(self, serial, local, remote):
-        try: subprocess.run([self.adb_path, "-s", serial, "push", local, remote], check=True, timeout=300); return True
+        try: subprocess.run([self.adb_path, "-s", serial, "push", local, remote], check=True, timeout=600); return True
         except: return False
 
     def pull_file(self, serial, remote, local):
-        try: subprocess.run([self.adb_path, "-s", serial, "pull", remote, local], check=True, timeout=300); return True
+        try: subprocess.run([self.adb_path, "-s", serial, "pull", remote, local], check=True, timeout=600); return True
         except: return False
 
     def set_clipboard(self, serial, text):
         subprocess.run([self.adb_path, "-s", serial, "shell", "am", "broadcast", "-a", "clipper.set", "-e", "text", text], capture_output=True)
+
+    def get_clipboard(self, serial):
+        return None
 
     def capture_screenshot(self, serial, path):
         try:
