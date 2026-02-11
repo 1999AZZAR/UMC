@@ -38,7 +38,7 @@ Rectangle {
                     Text { anchors.centerIn: parent; text: "U"; color: Style.accent; font.bold: true; font.pixelSize: 18 }
                 }
                 Column {
-                    Text { text: "UMC_CORE"; font.pixelSize: 14; font.weight: Font.Black; color: "#fff"; letterSpacing: -0.5 }
+                    Text { text: "UMC_CORE"; font.pixelSize: 14; font.weight: Font.Black; color: "#fff"; font.letterSpacing: -0.5 }
                     Text { text: "UNIFIED MOBILE CONTROLLER"; font.pixelSize: 8; font.weight: Font.Bold; color: Style.accent; opacity: 0.8 }
                 }
             }
@@ -256,7 +256,7 @@ Rectangle {
                     
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 20; spacing: 15
-                        Text { text: "GLOBAL_SYSTEM_CONFIG"; font.pixelSize: 10; font.weight: Font.Black; color: Style.accent; letterSpacing: 1 }
+                        Text { text: "GLOBAL_SYSTEM_CONFIG"; font.pixelSize: 10; font.weight: Font.Black; color: Style.accent; font.letterSpacing: 1 }
                         
                         RowLayout {
                             Layout.fillWidth: true; spacing: 4
