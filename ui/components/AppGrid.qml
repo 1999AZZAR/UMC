@@ -7,7 +7,7 @@ Item {
     id: root
     
     // Model state
-    readonly property bool isLoading: bridge && bridge.packagesModel.rowCount() === 0 && bridge.currentDeviceSerial !== ""
+    readonly property bool isLoading: bridge && bridge.loading && bridge.packagesModel.rowCount() === 0
 
     ColumnLayout {
         anchors.fill: parent
