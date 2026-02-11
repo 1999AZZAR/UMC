@@ -50,15 +50,14 @@ class ADBWorker(QObject):
     def fetch_packages(self, serial: str):
         if self._should_stop or not serial: return
         try:
-            # -3 for user apps, omitting -3 for all apps. User usually wants user apps + launcher system apps.
-            # Using query-activities is best for launchable apps.
             cmd = [self.adb_path, "-s", serial, "shell", "cmd", "package", "query-activities", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             apps = []
             seen = set()
             for line in result.stdout.strip().split('\n'):
+                line = line.strip()
                 if not line or line.startswith("Activity") or "/" not in line: continue
-                pkg = line.split("/")[0]
+                pkg = line.split("/")[0].strip()
                 if pkg not in seen:
                     label = pkg.split(".")[-1].capitalize()
                     icon = os.path.join(self.icon_cache_dir, f"{pkg}.png")

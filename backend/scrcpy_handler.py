@@ -9,6 +9,7 @@ class ScrcpyHandler:
         """
         Launches an app in a new virtual display using scrcpy.
         """
+        package_name = package_name.strip()
         resolution = f"{width}x{height}"
         if dpi > 0:
             resolution = f"{resolution}/{dpi}"
