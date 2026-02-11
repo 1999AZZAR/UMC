@@ -53,7 +53,7 @@ class ADBWorker(QObject):
         try:
             # Query activities to find launcher apps
             cmd = [self.adb_path, "-s", serial, "shell", "cmd", "package", "query-activities", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=15)
             
             # Fetch labels for all apps in one go or per batch might be slow, 
             # but we can try to guess from the package name first and then refine.

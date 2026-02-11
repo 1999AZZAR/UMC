@@ -32,7 +32,7 @@ class ADBHandler:
     def get_devices(self) -> List[Dict[str, str]]:
         if not self.adb_path: return []
         try:
-            result = subprocess.run([self.adb_path, "devices", "-l"], capture_output=True, text=True, check=True)
+            result = subprocess.run([self.adb_path, "devices", "-l"], capture_output=True, text=True, check=True, timeout=5)
             devices = []
             for line in result.stdout.strip().split('\n')[1:]:
                 if not line.strip(): continue
