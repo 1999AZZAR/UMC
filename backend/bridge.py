@@ -23,7 +23,7 @@ class PackageModel(QAbstractListModel):
     def roleNames(self):
         return {
             self.NameRole: b"name",
-            self.PackageRole: b"package",
+            self.PackageRole: b"packageId",
             self.IconRole: b"icon"
         }
 

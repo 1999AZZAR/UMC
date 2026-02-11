@@ -33,7 +33,11 @@ Item {
                     anchors.rightMargin: 15
                     spacing: 10
                     
-                    Icon { name: "search"; size: 14; color: Style.textSecondary }
+                    Icon {
+                        name: "search"
+                        size: 14
+                        color: Style.textSecondary
+                    }
                     
                     TextField {
                         id: searchField
@@ -43,14 +47,28 @@ Item {
                         font: Style.bodyFont
                         background: null
                         selectByMouse: true
-                        onTextChanged: if (bridge) bridge.packagesModel.filterText = text.trim()
+                        onTextChanged: {
+                            if (bridge) {
+                                bridge.packagesModel.filterText = text.trim()
+                            }
+                        }
                     }
                     
                     Item {
-                        width: 16; height: 16
+                        width: 16
+                        height: 16
                         visible: searchField.text.length > 0
-                        Text { anchors.centerIn: parent; text: "✕"; color: Style.textSecondary; font.pixelSize: 12 }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: searchField.text = "" }
+                        Text {
+                            anchors.centerIn: parent
+                            text: "✕"
+                            color: Style.textSecondary
+                            font.pixelSize: 12
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: searchField.text = ""
+                        }
                     }
                 }
             }
@@ -68,12 +86,16 @@ Item {
             model: bridge ? bridge.packagesModel : null
             
             delegate: Item {
-                width: 140; height: 160
+                width: 140
+                height: 160
                 
                 Rectangle {
                     id: cardBg
-                    width: 120; height: 140; anchors.centerIn: parent
-                    color: Style.surface; radius: Style.cornerRadius
+                    width: 120
+                    height: 140
+                    anchors.centerIn: parent
+                    color: Style.surface
+                    radius: Style.cornerRadius
                     border.color: mouseArea.containsMouse ? Style.accent : Style.surfaceLight
                     border.width: 1
                     
@@ -82,57 +104,102 @@ Item {
                     Behavior on border.color { ColorAnimation { duration: 150 } }
 
                     ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 12; spacing: 8
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 8
                         
                         Rectangle {
                             Layout.alignment: Qt.AlignHCenter
-                            width: 56; height: 56; radius: 18
-                            color: Style.surfaceLight; border.color: Style.surfaceHighlight; border.width: 1; clip: true
+                            width: 56
+                            height: 56
+                            radius: 18
+                            color: Style.surfaceLight
+                            border.color: Style.surfaceHighlight
+                            border.width: 1
+                            clip: true
 
                             Image {
                                 id: appIconImage
-                                anchors.fill: parent; anchors.margins: 2
+                                anchors.fill: parent
+                                anchors.margins: 2
                                 source: icon ? "file://" + icon : ""
                                 fillMode: Image.PreserveAspectFit
                                 visible: icon !== undefined && icon !== "" && status === Image.Ready
-                                smooth: true; antialiasing: true; asynchronous: true
+                                smooth: true
+                                antialiasing: true
+                                asynchronous: true
                                 
-                                Component.onCompleted: if (!icon && bridge) bridge.fetch_icon_for_package(package)
+                                Component.onCompleted: {
+                                    if (!icon && bridge) {
+                                        bridge.fetch_icon_for_package(packageId)
+                                    }
+                                }
                             }
                             
                             Text {
                                 anchors.centerIn: parent
-                                text: (name || package || "").substring(0, 1).toUpperCase()
-                                color: Style.accent; font.bold: true; font.pixelSize: 24; font.family: Style.headerFont.family
+                                text: (name || packageId || "").substring(0, 1).toUpperCase()
+                                color: Style.accent
+                                font.bold: true
+                                font.pixelSize: 24
+                                font.family: Style.headerFont.family
                                 visible: !appIconImage.visible || appIconImage.status !== Image.Ready
                             }
                         }
                         
                         Text {
-                            Layout.fillWidth: true; Layout.fillHeight: true
-                            text: name || package || ""; color: Style.textPrimary
-                            wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignTop
-                            elide: Text.ElideMiddle; maximumLineCount: 3; font: Style.bodySmallFont
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            text: name || packageId || ""
+                            color: Style.textPrimary
+                            wrapMode: Text.Wrap
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignTop
+                            elide: Text.ElideMiddle
+                            maximumLineCount: 3
+                            font: Style.bodySmallFont
                         }
                     }
                     
                     MouseArea {
-                        id: mouseArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: bridge.launch_app(package)
+                        id: mouseArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: bridge.launch_app(packageId)
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onPressAndHold: if (mouse.button === Qt.RightButton) batchMenu.open()
+                        onPressAndHold: {
+                            if (mouse.button === Qt.RightButton) {
+                                batchMenu.open()
+                            }
+                        }
                     }
                     
                     Menu {
-                        id: batchMenu; y: parent.height
-                        background: Rectangle { color: Style.surface; border.color: Style.divider; radius: 4 }
+                        id: batchMenu
+                        y: parent.height
+                        background: Rectangle {
+                            color: Style.surface
+                            border.color: Style.divider
+                            radius: 4
+                        }
                         MenuItem {
-                            text: "Launch on Selected Device"; font: Style.bodySmallFont
-                            onTriggered: bridge.launch_app(package)
+                            text: "Launch on Selected Device"
+                            font: Style.bodySmallFont
+                            onTriggered: bridge.launch_app(packageId)
                             contentItem: Row {
-                                spacing: 8; leftPadding: 8
-                                Icon { name: "play_arrow"; size: 14; color: parent.parent.highlighted ? Style.accent : Style.textSecondary }
-                                Text { text: parent.parent.text; font: parent.parent.font; color: parent.parent.highlighted ? Style.accent : Style.textPrimary }
+                                spacing: 8
+                                leftPadding: 8
+                                Icon {
+                                    name: "play_arrow"
+                                    size: 14
+                                    color: parent.parent.highlighted ? Style.accent : Style.textSecondary
+                                }
+                                Text {
+                                    text: parent.parent.text
+                                    font: parent.parent.font
+                                    color: parent.parent.highlighted ? Style.accent : Style.textPrimary
+                                }
                             }
                         }
                     }
@@ -145,11 +212,23 @@ Item {
     Item {
         anchors.centerIn: parent
         visible: bridge && bridge.packagesModel.rowCount() === 0 && searchField.text === ""
-        width: 300; height: 200
+        width: 300
+        height: 200
         ColumnLayout {
-            anchors.centerIn: parent; spacing: 20
-            Icon { Layout.alignment: Qt.AlignHCenter; name: "device_tablet"; size: 64; color: Style.surfaceHighlight }
-            Text { text: "Select a device to view apps"; color: Style.textSecondary; font: Style.subHeaderFont; Layout.alignment: Qt.AlignHCenter }
+            anchors.centerIn: parent
+            spacing: 20
+            Icon {
+                Layout.alignment: Qt.AlignHCenter
+                name: "device_tablet"
+                size: 64
+                color: Style.surfaceHighlight
+            }
+            Text {
+                text: "Select a device to view apps"
+                color: Style.textSecondary
+                font: Style.subHeaderFont
+                Layout.alignment: Qt.AlignHCenter
+            }
         }
     }
 }
