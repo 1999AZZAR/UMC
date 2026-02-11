@@ -2,6 +2,7 @@ import subprocess
 import shutil
 import re
 import os
+import sys
 from typing import List, Dict, Optional, Tuple
 
 class ADBHandler:
@@ -36,6 +37,7 @@ class ADBHandler:
             for line in result.stdout.strip().split('\n')[1:]:
                 if not line.strip(): continue
                 parts = line.split()
+                if len(parts) < 2: continue
                 serial = parts[0]
                 status = parts[1]
                 model = "Unknown"
@@ -64,7 +66,7 @@ class ADBHandler:
         return 400
 
     def get_device_status_info(self, serial: str) -> Dict[str, any]:
-        """Deep status gathering (Battery, Storage, Display, Volume, Settings)."""
+        """Deep status gathering with robust parsing."""
         info = {
             "battery_level": None,
             "battery_status": "unknown",
@@ -83,36 +85,66 @@ class ADBHandler:
         }
         
         try:
-            # 1. Battery & Temp
+            # 1. Battery & Temp (Using precise regex)
             batt_out = subprocess.run([self.adb_path, "-s", serial, "shell", "dumpsys", "battery"], capture_output=True, text=True, timeout=5).stdout
+            level, scale = 100, 100
             for line in batt_out.split('\n'):
-                if 'level:' in line.lower(): info["battery_level"] = int(line.split(':')[1])
-                if 'temperature:' in line.lower(): info["temperature"] = int(line.split(':')[1]) / 10.0
-                if 'status:' in line.lower():
+                line = line.strip().lower()
+                if line.startswith('level:'):
+                    try: level = int(line.split(':')[1].strip())
+                    except: pass
+                elif line.startswith('scale:'):
+                    try: scale = int(line.split(':')[1].strip())
+                    except: pass
+                elif line.startswith('temperature:'):
+                    try: info["temperature"] = int(line.split(':')[1].strip()) / 10.0
+                    except: pass
+                elif line.startswith('status:'):
                     s_code = line.split(':')[1].strip()
                     info["battery_status"] = {"2":"charging","3":"discharging","4":"not charging","5":"full"}.get(s_code, "unknown")
+            
+            # Calculate actual percentage based on scale
+            if scale > 0:
+                info["battery_level"] = int((level * 100) / scale)
+            else:
+                info["battery_level"] = level
 
             # 2. Storage
             df_out = subprocess.run([self.adb_path, "-s", serial, "shell", "df", "/data"], capture_output=True, text=True, timeout=5).stdout.split('\n')
             if len(df_out) > 1:
-                p = df_out[1].split()
-                if len(p) >= 4: info["storage"] = {"total": int(p[1])//1024, "used": int(p[2])//1024}
+                for line in df_out:
+                    if '/data' in line:
+                        p = line.split()
+                        if len(p) >= 4: 
+                            try:
+                                info["storage"] = {"total": int(p[1])//1024, "used": int(p[2])//1024}
+                                break
+                            except: pass
 
             # 3. Display info
             info["width"], info["height"] = self.get_device_resolution(serial)
             info["density"] = self.get_device_density(serial)
             
             # 4. Settings (Brightness & Rotation)
-            info["brightness"] = int(subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "screen_brightness"], capture_output=True, text=True, timeout=2).stdout.strip() or 128)
-            rot = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], capture_output=True, text=True, timeout=2).stdout.strip()
-            info["rotation_locked"] = (rot == "1")
+            try:
+                b_out = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "screen_brightness"], capture_output=True, text=True, timeout=2).stdout.strip()
+                if b_out.isdigit(): info["brightness"] = int(b_out)
+                
+                r_out = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], capture_output=True, text=True, timeout=2).stdout.strip()
+                info["rotation_locked"] = (r_out == "1")
+                
+                a_out = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "global", "airplane_mode_on"], capture_output=True, text=True, timeout=2).stdout.strip()
+                info["airplane_mode"] = (a_out == "1")
+            except: pass
 
-            # 5. Volume (Music stream 3)
+            # 5. Volume
             vol_out = subprocess.run([self.adb_path, "-s", serial, "shell", "media", "volume", "--get", "--stream", "3"], capture_output=True, text=True, timeout=2).stdout
             v_match = re.search(r'volume is (\d+)', vol_out)
             if v_match: info["volume_music"] = int(v_match.group(1))
 
-        except: pass
+        except Exception as e:
+            print(f"Error gathering status for {serial}: {e}", file=sys.stderr)
+            
         return info
 
     def get_app_icon_path(self, serial: str, package_name: str, cache_dir: str, timeout: int = 30) -> Optional[str]:
@@ -133,23 +165,30 @@ class ADBHandler:
             
             import zipfile
             with zipfile.ZipFile(temp_apk, 'r') as z:
-                # Search widely for launcher icon
-                targets = [
+                # Wide search for icons
+                icon_targets = [
                     'res/mipmap-xxxhdpi/ic_launcher.png',
                     'res/mipmap-xxhdpi/ic_launcher.png',
                     'res/mipmap-xhdpi/ic_launcher.png',
                     'res/drawable-xxhdpi/ic_launcher.png',
                     'res/drawable-xhdpi/ic_launcher.png'
                 ]
-                # Also try adaptive icons
-                for name in z.namelist():
-                    if 'ic_launcher.png' in name:
-                        targets.append(name)
-                
-                for target in targets:
+                # Try specific targets first
+                extracted = False
+                for target in icon_targets:
                     if target in z.namelist():
                         with z.open(target) as zin, open(cache_file, 'wb') as fout: fout.write(zin.read())
+                        extracted = True
                         break
+                
+                # Fallback to any ic_launcher
+                if not extracted:
+                    for name in z.namelist():
+                        if 'ic_launcher' in name and name.endswith('.png'):
+                            with z.open(name) as zin, open(cache_file, 'wb') as fout: fout.write(zin.read())
+                            extracted = True
+                            break
+
             if os.path.exists(temp_apk): os.remove(temp_apk)
             return cache_file if os.path.exists(cache_file) else None
         except: return None
@@ -164,9 +203,6 @@ class ADBHandler:
 
     def set_clipboard(self, serial, text):
         subprocess.run([self.adb_path, "-s", serial, "shell", "am", "broadcast", "-a", "clipper.set", "-e", "text", text], capture_output=True)
-
-    def get_clipboard(self, serial):
-        return None
 
     def capture_screenshot(self, serial, path):
         try:

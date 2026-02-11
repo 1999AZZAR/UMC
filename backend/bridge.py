@@ -7,6 +7,7 @@ from .adb_handler import ADBHandler
 from .profiles import get_profile_names, get_profile_flags
 import json
 import os
+import sys
 import subprocess
 
 class PackageModel(QAbstractListModel):
@@ -66,16 +67,19 @@ class PackageModel(QAbstractListModel):
             ]
 
     def updateIcon(self, package_name, icon_path):
+        found = False
         for p in self._all_packages:
             if p.get("package") == package_name:
-                p["icon"] = icon_path
+                if p["icon"] != icon_path:
+                    p["icon"] = icon_path
+                    found = True
                 break
-        for i, p in enumerate(self._visible_packages):
-            if p.get("package") == package_name:
-                p["icon"] = icon_path
-                idx = self.index(i)
-                self.dataChanged.emit(idx, idx, [self.IconRole])
-                break
+        if found:
+            for i, p in enumerate(self._visible_packages):
+                if p.get("package") == package_name:
+                    idx = self.index(i)
+                    self.dataChanged.emit(idx, idx, [self.IconRole])
+                    break
     
     def clear(self):
         self.beginResetModel()
@@ -85,9 +89,9 @@ class PackageModel(QAbstractListModel):
         self.countChanged.emit()
 
 class BackendBridge(QObject):
-    # Signals for UI
-    devicesChanged = Signal(list, arguments=['devices'])
-    deviceStatusChanged = Signal(str, dict, arguments=['serial', 'status'])
+    # UI Signals
+    devicesChanged = Signal(list)
+    deviceStatusChanged = Signal(str, dict)
     fileTransferProgress = Signal(str, str, int)
     fileTransferComplete = Signal(str, str, bool)
     clipboardChanged = Signal(str, str)
@@ -103,7 +107,7 @@ class BackendBridge(QObject):
     currentDeviceChanged = Signal(str)
     loadingChanged = Signal(bool)
     
-    # Internal Signals
+    # Internal Signals (Ensures Queued Connection to Worker)
     requestDevices = Signal()
     requestPackages = Signal(str)
     requestToggleScreen = Signal(str)
@@ -146,7 +150,8 @@ class BackendBridge(QObject):
         if app:
             self._clipboard = app.clipboard()
             self._last_clipboard_text = self._clipboard.text() if self._clipboard else ""
-            if self._clipboard: self._clipboard.dataChanged.connect(self._on_desktop_clipboard_data_changed)
+            if self._clipboard: 
+                self._clipboard.dataChanged.connect(self._on_desktop_clipboard_data_changed)
         else:
             self._clipboard = None
             self._last_clipboard_text = ""
@@ -156,6 +161,7 @@ class BackendBridge(QObject):
         self._worker = ADBWorker()
         self._worker.moveToThread(self._thread)
         
+        # Connect signals with proper error safety
         self.requestDevices.connect(self._worker.fetch_devices)
         self.requestPackages.connect(self._worker.fetch_packages)
         self.requestToggleScreen.connect(self._worker.toggle_device_screen)
@@ -189,7 +195,7 @@ class BackendBridge(QObject):
         self._timer.start(3000)
         self.requestDevices.emit()
 
-    # Properties
+    # --- Properties ---
     @Property(list, notify=devicesChanged)
     def devices(self): return self._devices
     @Property(str, notify=launchModeChanged)
@@ -221,11 +227,12 @@ class BackendBridge(QObject):
     @Property(bool, notify=loadingChanged)
     def loading(self): return self._is_loading
 
-    # Slots for QML
+    # --- Slots for QML ---
     @Slot()
     def refresh_devices(self): self.requestDevices.emit()
     @Slot(str)
     def select_device(self, serial):
+        if not serial: return
         self._current_device_serial = serial; self.currentDeviceChanged.emit(serial)
         self._is_loading = True; self.loadingChanged.emit(True)
         self.statusMessage.emit(f"Selected: {serial}")
@@ -246,7 +253,7 @@ class BackendBridge(QObject):
                                    turn_screen_off=self._launch_with_screen_off, extra_flags=get_profile_flags(self._current_profile))
     @Slot(str)
     def launch_app(self, package_name):
-        if not self._current_device_serial: return
+        if not self._current_device_serial or not package_name: return
         w, h, d = self._get_display_params(self._current_device_serial, self._launch_mode)
         self._scrcpy.launch_app(self._current_device_serial, package_name, width=w, height=h, 
                                dpi=d, turn_screen_off=self._launch_with_screen_off, 
@@ -308,7 +315,7 @@ class BackendBridge(QObject):
             if d.get("serial") == s: d["custom_name"] = n
         self.devicesChanged.emit(self._devices)
 
-    # Sync Getters (Non-blocking cache)
+    # --- Sync Getters ---
     @Slot(str, str, result=int)
     def get_volume(self, s, st): return self._device_status.get(s, {}).get(f"volume_{st}", 0)
     @Slot(str, result=int)
@@ -322,30 +329,34 @@ class BackendBridge(QObject):
     @Slot(str, result=bool)
     def get_bluetooth_enabled(self, s): return self._device_status.get(s, {}).get("bluetooth_enabled", False)
 
-    # Internal Handlers
+    # --- Internal Handlers ---
     @Slot(list)
     def _on_devices_ready(self, devices):
-        serials = [d['serial'] for d in devices]
-        if self._current_device_serial and self._current_device_serial not in serials:
-            self._current_device_serial = ""; self.currentDeviceChanged.emit("")
-            self._package_model.clear(); self.statusMessage.emit("Device disconnected")
-        for d in devices:
-            s = d['serial']
-            if s in self._device_names: d["custom_name"] = self._device_names[s]
-            if s in self._device_status: d["status_data"] = self._device_status[s]
-            self.requestDeviceStatus.emit(s)
-        if devices != self._devices: self._devices = devices; self.devicesChanged.emit(self._devices)
+        try:
+            serials = [d['serial'] for d in devices]
+            if self._current_device_serial and self._current_device_serial not in serials:
+                self._current_device_serial = ""; self.currentDeviceChanged.emit("")
+                self._package_model.clear(); self.statusMessage.emit("Device disconnected")
+            for d in devices:
+                s = d['serial']
+                if s in self._device_names: d["custom_name"] = self._device_names[s]
+                if s in self._device_status: d["status_data"] = self._device_status[s]
+                self.requestDeviceStatus.emit(s)
+            if devices != self._devices: self._devices = devices; self.devicesChanged.emit(self._devices)
+        except Exception as e: print(f"Error in _on_devices_ready: {e}", file=sys.stderr)
         
     @Slot(str, dict)
     def _on_device_status_ready(self, s, st):
-        self._device_status[s] = st
-        for device in self._devices:
-            if device['serial'] == s:
-                device["status_data"] = st
-                self.devicesChanged.emit(self._devices)
-                break
-        self.deviceStatusChanged.emit(s, st)
-        if self._clipboard_sync_enabled.get(s, False): self.requestGetClipboard.emit(s)
+        try:
+            self._device_status[s] = st
+            for device in self._devices:
+                if device['serial'] == s:
+                    device["status_data"] = st
+                    self.devicesChanged.emit(self._devices)
+                    break
+            self.deviceStatusChanged.emit(s, st)
+            if self._clipboard_sync_enabled.get(s, False): self.requestGetClipboard.emit(s)
+        except Exception as e: print(f"Error in _on_device_status_ready: {e}", file=sys.stderr)
 
     @Slot(str, list)
     def _on_packages_ready(self, serial, packages):
@@ -358,7 +369,10 @@ class BackendBridge(QObject):
     @Slot(str, str, int)
     def _on_file_transfer_progress(self, s, o, p): self.fileTransferProgress.emit(s, o, p)
     @Slot(str, str, bool)
-    def _on_file_transfer_complete(self, s, o, sc): self.fileTransferComplete.emit(s, o, sc)
+    def _on_file_transfer_complete(self, s, o, sc): 
+        msg = "completed" if sc else "failed"
+        self.statusMessage.emit(f"File {o} {msg} for {s}")
+        self.fileTransferComplete.emit(s, o, sc)
     @Slot(str, str)
     def _on_screenshot_ready(self, s, p): 
         self.screenshotReady.emit(s, p)
