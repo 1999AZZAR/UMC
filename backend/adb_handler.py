@@ -90,12 +90,13 @@ class ADBHandler:
             # 1. Battery Info (The primary culprit for 5% vs 100%)
             batt_res = subprocess.run([self.adb_path, "-s", serial, "shell", "dumpsys", "battery"], capture_output=True, text=True, timeout=5)
             if batt_res.returncode == 0:
+                # Use multiline search to be specific
                 level_match = re.search(r'level:\s+(\d+)', batt_res.stdout)
                 scale_match = re.search(r'scale:\s+(\d+)', batt_res.stdout)
                 temp_match = re.search(r'temperature:\s+(\d+)', batt_res.stdout)
                 status_match = re.search(r'status:\s+(\d+)', batt_res.stdout)
                 
-                level = int(level_match.group(1)) if level_match else 100
+                level = int(level_match.group(1)) if level_match else 0
                 scale = int(scale_match.group(1)) if scale_match else 100
                 if scale > 0:
                     info["battery_level"] = int((level * 100) / scale)
@@ -105,7 +106,8 @@ class ADBHandler:
                 
                 if status_match:
                     s_code = status_match.group(1)
-                    info["battery_status"] = {"2":"charging","3":"discharging","4":"not charging","5":"full"}.get(s_code, "unknown")
+                    # 1: unknown, 2: charging, 3: discharging, 4: not charging, 5: full
+                    info["battery_status"] = {"1":"unknown", "2":"charging","3":"discharging","4":"not charging","5":"full"}.get(s_code, "unknown")
 
             # 2. Storage Info
             df_res = subprocess.run([self.adb_path, "-s", serial, "shell", "df", "/data"], capture_output=True, text=True, timeout=5)
@@ -235,3 +237,20 @@ class ADBHandler:
     def set_bluetooth_enabled(self, serial, enabled):
         cmd = "enable" if enabled else "disable"
         return subprocess.run([self.adb_path, "-s", serial, "shell", "svc", "bluetooth", cmd], timeout=5).returncode == 0
+
+    def get_app_label(self, serial: str, package_name: str) -> Optional[str]:
+        """Attempt to get a human-readable label for a package."""
+        try:
+            # Try pm dump first (often contains label=...)
+            res = subprocess.run([self.adb_path, "-s", serial, "shell", "dumpsys", "package", package_name], capture_output=True, text=True, timeout=5)
+            # Look for label=
+            match = re.search(r'label=([\w\s]+)', res.stdout)
+            if match: return match.group(1).strip()
+            
+            # Try to find the application label in a specific section
+            # (varies by Android version)
+            for line in res.stdout.split('\n'):
+                if 'label=' in line:
+                    return line.split('label=')[1].split()[0].strip()
+        except: pass
+        return None

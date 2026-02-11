@@ -87,8 +87,13 @@ class ScrcpyHandler:
         except: return False
 
     def stop_all(self):
-        """Kill all managed scrcpy sessions."""
+        """Kill all managed scrcpy sessions safely."""
         for proc in self._processes.values():
-            if proc.poll() is None:
-                proc.terminate()
+            try:
+                if proc.poll() is None:
+                    proc.terminate()
+                    proc.wait(timeout=1)
+            except:
+                try: proc.kill()
+                except: pass
         self._processes.clear()

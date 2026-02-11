@@ -5,7 +5,7 @@ QtObject {
     // M3 Tonal Palette (Dark Pastel Blue - "Glass Hub" Edition)
     readonly property color background: "#0F1115"
     readonly property color surface: "#1A1C1E"
-    readonly property color surfaceLight: "#2A2D35"    // Secondary Container
+    readonly property color surfaceLight: "#282C34"    // Secondary Container
     readonly property color surfaceHighlight: "#343841" // Tonal Elevation
     
     readonly property color textPrimary: "#E2E2E6"
@@ -13,7 +13,7 @@ QtObject {
     readonly property color textDisabled: "#8E9199"
     
     readonly property color accent: "#D1E4FF"         // Primary Pastel
-    readonly property color accentVariant: "#00497D"  // Deep Primary
+    readonly property color accentVariant: "#1B2D44"  // Deeper Primary Container
     readonly property color accentTertiary: "#F7D8FF" // Tertiary Pastel (Pinkish)
     readonly property color accentSuccess: "#B4F1B4"
     

@@ -51,8 +51,12 @@ class ADBWorker(QObject):
     def fetch_packages(self, serial: str):
         if self._should_stop or not serial: return
         try:
+            # Query activities to find launcher apps
             cmd = [self.adb_path, "-s", serial, "shell", "cmd", "package", "query-activities", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            
+            # Fetch labels for all apps in one go or per batch might be slow, 
+            # but we can try to guess from the package name first and then refine.
             apps = []
             seen = set()
             for line in result.stdout.strip().split('\n'):
@@ -60,10 +64,20 @@ class ADBWorker(QObject):
                 if not line or line.startswith("Activity") or "/" not in line: continue
                 pkg = line.split("/")[0].strip()
                 if pkg not in seen:
-                    label = pkg.split(".")[-1].capitalize()
+                    # Better default label: remove com. prefix and capitalize
+                    parts = pkg.split(".")
+                    if len(parts) > 2: label = parts[-1].capitalize()
+                    elif len(parts) > 1: label = parts[1].capitalize()
+                    else: label = pkg.capitalize()
+                    
+                    if label.lower() == "android":
+                        # If it's still "Android", try the previous part
+                        if len(parts) > 1: label = parts[-2].capitalize()
+                    
                     icon = os.path.join(self.icon_cache_dir, f"{pkg}.png")
                     apps.append({"package": pkg, "name": label, "icon": icon if os.path.exists(icon) else None})
                     seen.add(pkg)
+            
             apps.sort(key=lambda x: x["name"].lower())
             self.packagesReady.emit(serial, apps)
         except Exception as e:
