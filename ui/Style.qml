@@ -2,36 +2,43 @@ pragma Singleton
 import QtQuick 2.15
 
 QtObject {
-    // M3 Tonal Palette (Dark Pastel Blue - "Glass Hub" Edition)
-    readonly property color background: "#0F1115"
-    readonly property color surface: "#1A1C1E"
-    readonly property color surfaceLight: "#282C34"    // Secondary Container
-    readonly property color surfaceHighlight: "#343841" // Tonal Elevation
+    // Color Palette (Professional Dark Theme)
+    property color background: "#1E1E1E"    // VSCode-like dark background
+    property color surface: "#252526"       // Slightly lighter surface
+    property color surfaceLight: "#333333"  // Hover/Input fields
+    property color surfaceHighlight: "#37373D" // Selection highlight
     
-    readonly property color textPrimary: "#E2E2E6"
-    readonly property color textSecondary: "#D7E3F7"
-    readonly property color textDisabled: "#8E9199"
+    property color textPrimary: "#CCCCCC"   // Softer white for main text
+    property color textSecondary: "#969696" // Muted gray for subtitles
+    property color textDisabled: "#5A5A5A"
     
-    readonly property color accent: "#D1E4FF"         // Primary Pastel
-    readonly property color accentVariant: "#1B2D44"  // Deeper Primary Container
-    readonly property color accentTertiary: "#F7D8FF" // Tertiary Pastel (Pinkish)
-    readonly property color accentSuccess: "#B4F1B4"
+    // Professional Accent (Muted Blue/Azure)
+    property color accent: "#007ACC"        // Standard "Tech Blue"
+    property color accentVariant: "#005F9E" // Darker shade
+    property color accentSecondary: "#4EC9B0" // Teal for specific highlights
     
-    readonly property color error: "#FFB4AB"
-    readonly property color success: "#B4F1B4"
-    readonly property color warning: "#EFDB72"
+    property color error: "#F48771"         // Soft Red
+    property color success: "#89D185"       // Soft Green
+    property color warning: "#CCA700"       // Soft Yellow
     
-    readonly property color divider: "transparent"
+    property color divider: "#3E3E42"
 
     // Layout
-    readonly property int sidebarWidth: 320
-    readonly property int headerHeight: 80
-    readonly property int cornerRadius: 28            // Large rounded corners (M3)
-    readonly property int cornerRadiusSmall: 16
+    property int sidebarWidth: 280
+    property int headerHeight: 60
+    property int cornerRadius: 4            // Sharper corners look more "tool-like"
+    property int spacingSmall: 8
+    property int spacingMedium: 16
+    property int spacingLarge: 24
     
-    // Typography (Plus Jakarta Sans)
-    readonly property font headerFont: Qt.font({family: "Plus Jakarta Sans", pointSize: 18, weight: Font.Bold})
-    readonly property font subHeaderFont: Qt.font({family: "Plus Jakarta Sans", pointSize: 13, weight: Font.DemiBold})
-    readonly property font bodyFont: Qt.font({family: "Plus Jakarta Sans", pointSize: 11})
-    readonly property font bodySmallFont: Qt.font({family: "Plus Jakarta Sans", pointSize: 10, weight: Font.Medium})
+    // Typography
+    property font headerFont: Qt.font({family: "Segoe UI", pointSize: 16, weight: Font.DemiBold})
+    property font subHeaderFont: Qt.font({family: "Segoe UI", pointSize: 13, weight: Font.Medium})
+    property font bodyFont: Qt.font({family: "Segoe UI", pointSize: 11})
+    property font bodySmallFont: Qt.font({family: "Segoe UI", pointSize: 10})
+    property font iconFont: Qt.font({family: "Segoe UI Emoji", pointSize: 14}) 
+    
+    // Animation
+    property int animDurationShort: 100
+    property int animDurationNormal: 200
 }
