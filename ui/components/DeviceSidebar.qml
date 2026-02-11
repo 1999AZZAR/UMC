@@ -10,7 +10,7 @@ Rectangle {
     color: Style.surface
     
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 0; spacing: 0
+        anchors.fill: parent; spacing: 0
 
         // App Header
         Rectangle {
@@ -30,21 +30,24 @@ Rectangle {
         }
 
         ScrollView {
+            id: sidebarScroll
             Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-            ColumnLayout {
-                width: parent.width - 32; spacing: 16; anchors.horizontalCenter: parent.horizontalCenter
-                anchors.topMargin: 8; anchors.bottomMargin: 24
+            
+            // Content Container
+            Column {
+                width: sidebar.width; spacing: 16; leftPadding: 16; rightPadding: 16
+                topPadding: 8; bottomPadding: 24
 
+                // 1. Connection Card
                 Rectangle {
                     id: connectSection
-                    Layout.fillWidth: true; height: connectExpanded ? 240 : 64
+                    width: parent.width - 32; height: connectExpanded ? 240 : 64
                     radius: 20; color: Style.surfaceLight
                     property bool connectExpanded: false
-                    z: connectExpanded ? 100 : 1
                     Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutQuint } }
                     
                     MouseArea {
-                        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; height: 64
+                        anchors.top: parent.top; width: parent.width; height: 64
                         cursorShape: Qt.PointingHandCursor
                         onClicked: connectSection.connectExpanded = !connectSection.connectExpanded
                     }
@@ -66,7 +69,7 @@ Rectangle {
                             }
                             Button {
                                 text: "Connect Link"; Layout.fillWidth: true; height: 40
-                                contentItem: Text { text: parent.text; font.bold: true; color: Style.background; horizontalAlignment: Text.AlignHCenter }
+                                contentItem: Text { text: parent.text; font.bold: true; color: Style.background; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                                 background: Rectangle { color: Style.accent; radius: 10 }
                                 onClicked: if (ipAddressField.text) bridge.connect_wireless_device(ipAddressField.text)
                             }
@@ -76,13 +79,14 @@ Rectangle {
 
                 Text { text: "Devices"; color: Style.textSecondary; font.pixelSize: 11; font.weight: Font.Medium; opacity: 0.6; leftPadding: 12 }
 
-                ColumnLayout {
-                    Layout.fillWidth: true; spacing: 12
+                // 2. Device List
+                Column {
+                    width: parent.width - 32; spacing: 12
                     Repeater {
                         model: bridge ? bridge.devices : []
                         delegate: Rectangle {
                             id: deviceDelegate
-                            Layout.fillWidth: true; height: expanded ? 450 : 70
+                            width: parent.width; height: expanded ? 450 : 70
                             radius: 20; color: isSelected ? Style.surfaceHighlight : Style.surfaceLight
                             property bool isSelected: bridge && bridge.currentDeviceSerial === modelData.serial
                             property bool expanded: false
@@ -157,27 +161,33 @@ Rectangle {
                     }
                 }
                 
+                // 3. Settings Card
                 Rectangle {
-                    Layout.fillWidth: true; Layout.preferredHeight: 180; color: Style.surfaceLight; radius: 20
+                    width: parent.width - 32; height: 180; color: Style.surfaceLight; radius: 20
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 16; spacing: 12
                         Text { text: "Launch Config"; color: Style.textPrimary; font.pixelSize: 11; font.bold: true }
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 4
+                        
+                        // Device Mode Selector
+                        Row {
+                            width: parent.width; spacing: 4
+                            property var modes: ["Tablet", "Phone", "Desktop"]
                             Repeater {
-                                model: ["Tablet", "Phone", "Desktop"]
+                                model: parent.modes
                                 Button {
-                                    Layout.fillWidth: true; text: modelData
+                                    width: (parent.width - 8) / 3; height: 32
+                                    text: modelData
                                     property bool isActive: bridge && bridge.launchMode === modelData
-                                    contentItem: Text { text: parent.text; font.bold: true; font.pixelSize: 9; color: parent.isActive ? Style.background : Style.textPrimary; horizontalAlignment: Text.AlignHCenter }
+                                    contentItem: Text { text: parent.text; font.bold: true; font.pixelSize: 9; color: parent.isActive ? Style.background : Style.textPrimary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                                     background: Rectangle { color: parent.isActive ? Style.accent : Style.surface; radius: 8 }
                                     onClicked: if (bridge) bridge.launchMode = modelData
                                 }
                             }
                         }
+                        
                         CheckBox { 
                             text: "Screen Off"; checked: bridge ? bridge.launchWithScreenOff : false
-                            contentItem: Text { text: parent.text; color: Style.textSecondary; font.pixelSize: 10; leftPadding: 30 }
+                            contentItem: Text { text: parent.text; color: Style.textSecondary; font.pixelSize: 10; leftPadding: 30; verticalAlignment: Text.AlignVCenter }
                             onCheckedChanged: if (bridge) bridge.launchWithScreenOff = checked 
                         }
                     }
