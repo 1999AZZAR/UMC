@@ -1,1 +1,1 @@
-# UMC Backend Package
+from .bridge import BackendBridge
