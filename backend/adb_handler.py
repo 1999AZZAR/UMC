@@ -13,9 +13,13 @@ class ADBHandler:
         try:
             result = subprocess.run([self.adb_path, "connect", address], capture_output=True, text=True, timeout=10)
             output = result.stdout + result.stderr
-            if "connected" in output.lower(): return True, f"Connected to {address}"
+            if "connected" in output.lower() or "already connected" in output.lower():
+                return True, f"Connected to {address}"
             return False, output.strip()
-        except: return False, "Connect timed out"
+        except subprocess.TimeoutExpired:
+            return False, "Connection attempt timed out"
+        except Exception as e:
+            return False, str(e)
 
     def disconnect_device(self, address: str) -> tuple[bool, str]:
         if not self.adb_path: return False, "ADB not found"
@@ -60,7 +64,7 @@ class ADBHandler:
         return 400
 
     def get_device_status_info(self, serial: str) -> Dict[str, any]:
-        """Deep status gathering (Battery, Storage, Display, Volume)."""
+        """Deep status gathering (Battery, Storage, Display, Volume, Settings)."""
         info = {
             "battery_level": None,
             "battery_status": "unknown",
@@ -71,32 +75,38 @@ class ADBHandler:
             "height": 2400,
             "density": 400,
             "brightness": 128,
-            "volume_music": 0
+            "volume_music": 0,
+            "rotation_locked": False,
+            "airplane_mode": False,
+            "wifi_enabled": True,
+            "bluetooth_enabled": False
         }
         
         try:
             # 1. Battery & Temp
-            batt = subprocess.run([self.adb_path, "-s", serial, "shell", "dumpsys", "battery"], capture_output=True, text=True, timeout=5).stdout
-            for line in batt.split('\n'):
-                if 'level:' in line: info["battery_level"] = int(line.split(':')[1])
-                if 'temperature:' in line: info["temperature"] = int(line.split(':')[1]) / 10.0
-                if 'status:' in line:
-                    s = line.split(':')[1].strip()
-                    info["battery_status"] = {"2":"charging","3":"discharging","4":"not charging","5":"full"}.get(s, "unknown")
+            batt_out = subprocess.run([self.adb_path, "-s", serial, "shell", "dumpsys", "battery"], capture_output=True, text=True, timeout=5).stdout
+            for line in batt_out.split('\n'):
+                if 'level:' in line.lower(): info["battery_level"] = int(line.split(':')[1])
+                if 'temperature:' in line.lower(): info["temperature"] = int(line.split(':')[1]) / 10.0
+                if 'status:' in line.lower():
+                    s_code = line.split(':')[1].strip()
+                    info["battery_status"] = {"2":"charging","3":"discharging","4":"not charging","5":"full"}.get(s_code, "unknown")
 
             # 2. Storage
-            df = subprocess.run([self.adb_path, "-s", serial, "shell", "df", "/data"], capture_output=True, text=True, timeout=5).stdout.split('\n')
-            if len(df) > 1:
-                p = df[1].split()
+            df_out = subprocess.run([self.adb_path, "-s", serial, "shell", "df", "/data"], capture_output=True, text=True, timeout=5).stdout.split('\n')
+            if len(df_out) > 1:
+                p = df_out[1].split()
                 if len(p) >= 4: info["storage"] = {"total": int(p[1])//1024, "used": int(p[2])//1024}
 
-            # 3. Display info (for scrcpy resolution matching)
+            # 3. Display info
             info["width"], info["height"] = self.get_device_resolution(serial)
             info["density"] = self.get_device_density(serial)
             
-            # 4. Settings
+            # 4. Settings (Brightness & Rotation)
             info["brightness"] = int(subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "screen_brightness"], capture_output=True, text=True, timeout=2).stdout.strip() or 128)
-            
+            rot = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], capture_output=True, text=True, timeout=2).stdout.strip()
+            info["rotation_locked"] = (rot == "1")
+
             # 5. Volume (Music stream 3)
             vol_out = subprocess.run([self.adb_path, "-s", serial, "shell", "media", "volume", "--get", "--stream", "3"], capture_output=True, text=True, timeout=2).stdout
             v_match = re.search(r'volume is (\d+)', vol_out)
@@ -123,11 +133,12 @@ class ADBHandler:
             
             import zipfile
             with zipfile.ZipFile(temp_apk, 'r') as z:
-                for target in ['res/mipmap-xhdpi/ic_launcher.png', 'res/drawable-xhdpi/ic_launcher.png']:
+                # Common density folders
+                for target in ['res/mipmap-xxhdpi/ic_launcher.png', 'res/mipmap-xhdpi/ic_launcher.png', 'res/drawable-xhdpi/ic_launcher.png']:
                     if target in z.namelist():
                         with z.open(target) as zin, open(cache_file, 'wb') as fout: fout.write(zin.read())
                         break
-            os.remove(temp_apk)
+            if os.path.exists(temp_apk): os.remove(temp_apk)
             return cache_file if os.path.exists(cache_file) else None
         except: return None
 
@@ -142,16 +153,23 @@ class ADBHandler:
     def set_clipboard(self, serial, text):
         subprocess.run([self.adb_path, "-s", serial, "shell", "am", "broadcast", "-a", "clipper.set", "-e", "text", text], capture_output=True)
 
-    def get_clipboard(self, serial):
-        # Requires clipper app or similar
-        return None
-
     def capture_screenshot(self, serial, path):
         try:
-            data = subprocess.run([self.adb_path, "-s", serial, "shell", "screencap", "-p"], capture_output=True, timeout=10).stdout
+            data = subprocess.run([self.adb_path, "-s", serial, "shell", "screencap", "-p"], capture_output=True, timeout=15).stdout
+            if not data: return False
             with open(path, 'wb') as f: f.write(data)
             return True
         except: return False
+
+    def pair_device(self, address: str, code: str) -> tuple[bool, str]:
+        if not self.adb_path: return False, "ADB not found"
+        try:
+            process = subprocess.Popen([self.adb_path, "pair", address], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout, stderr = process.communicate(input=code + "\n", timeout=30)
+            output = stdout + stderr
+            if "successfully paired" in output.lower(): return True, "Successfully paired"
+            return False, output.strip()
+        except Exception as e: return False, str(e)
 
     def set_volume(self, serial, stream, level):
         st_type = {'music':'3', 'ring':'2', 'alarm':'4'}.get(stream, '3')

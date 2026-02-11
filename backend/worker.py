@@ -50,7 +50,8 @@ class ADBWorker(QObject):
     def fetch_packages(self, serial: str):
         if self._should_stop or not serial: return
         try:
-            # Query activities for launcher category (accurate for 'openable' apps)
+            # -3 for user apps, omitting -3 for all apps. User usually wants user apps + launcher system apps.
+            # Using query-activities is best for launchable apps.
             cmd = [self.adb_path, "-s", serial, "shell", "cmd", "package", "query-activities", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             apps = []
@@ -135,6 +136,12 @@ class ADBWorker(QObject):
     @Slot(str, bool)
     def set_bluetooth_enabled(self, s, e):
         if self.adb_handler.set_bluetooth_enabled(s, e): self.deviceControlChanged.emit(s, "bluetooth")
+
+    @Slot(str)
+    def connect_wireless(self, address):
+        success, message = self.adb_handler.connect_wireless(address)
+        if success: self.fetch_devices()
+        else: self.errorOccurred.emit(message)
 
     def stop(self):
         self._should_stop = True
