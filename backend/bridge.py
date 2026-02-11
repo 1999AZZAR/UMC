@@ -66,12 +66,10 @@ class PackageModel(QAbstractListModel):
         self.endResetModel()
 
     def updateIcon(self, package_name, icon_path):
-        # Update in all_packages cache
         for p in self._all_packages:
             if p.get("package") == package_name:
                 p["icon"] = icon_path
                 break
-        # Update in visible list and notify
         for i, p in enumerate(self._visible_packages):
             if p.get("package") == package_name:
                 p["icon"] = icon_path
@@ -135,23 +133,16 @@ class BackendBridge(QObject):
         self._current_profile = "Default"
         self._profiles = get_profile_names()
         
-        # Device status cache
         self._device_status = {}
-        
-        # Models
         self._package_model = PackageModel()
-        
-        # Settings
         self._settings = QSettings("UMC", "DeviceManager")
         self._device_names = self._load_device_names()
-        self._device_groups = self._load_device_groups()
+        self._device_groups = {} # Placeholder
         
-        # Clipboard sync settings
         self._clipboard_sync_enabled = {}
         self._clipboard_history = []
         self._max_clipboard_history = 50
         
-        # Clipboard monitoring
         app = QGuiApplication.instance()
         if app:
             self._clipboard = app.clipboard()
@@ -163,13 +154,11 @@ class BackendBridge(QObject):
             self._last_clipboard_text = ""
         
         self._file_transfer_progress = {}
-        
-        # Setup Worker Thread
         self._thread = QThread()
         self._worker = ADBWorker()
         self._worker.moveToThread(self._thread)
         
-        # Connect Signals (QueuedConnection for across threads)
+        # Connections
         self.requestDevices.connect(self._worker.fetch_devices)
         self.requestPackages.connect(self._worker.fetch_packages)
         self.requestToggleScreen.connect(self._worker.toggle_device_screen)
@@ -198,206 +187,126 @@ class BackendBridge(QObject):
         self._worker.errorOccurred.connect(self._on_worker_error)
         
         self._thread.start()
-        
-        # Auto-refresh devices
         self._timer = QTimer()
         self._timer.timeout.connect(self.requestDevices.emit)
         self._timer.start(3000)
-        
         self.requestDevices.emit()
 
-    def get_devices(self): return self._devices
-    def get_packages(self): return self._packages
-    def get_launch_mode(self): return self._launch_mode
-    def get_launch_with_screen_off(self): return self._launch_with_screen_off
-    def get_current_device_serial(self): return self._current_device_serial
-    def get_audio_forwarding(self): return self._audio_forwarding
-    def get_current_profile(self): return self._current_profile
-    def get_profiles(self): return self._profiles
-
-    def set_launch_mode(self, mode):
-        if self._launch_mode != mode:
-            self._launch_mode = mode
-            self.launchModeChanged.emit(mode)
-
-    def set_launch_with_screen_off(self, enabled):
-        if self._launch_with_screen_off != enabled:
-            self._launch_with_screen_off = enabled
-            self.launchWithScreenOffChanged.emit(enabled)
-
-    def set_audio_forwarding(self, enabled):
-        if self._audio_forwarding != enabled:
-            self._audio_forwarding = enabled
-            self.audioForwardingChanged.emit(enabled)
-
-    def set_current_profile(self, profile):
-        if self._current_profile != profile and profile in self._profiles:
-            self._current_profile = profile
-            self.currentProfileChanged.emit(profile)
-
-    devices = Property(list, fget=get_devices, notify=devicesChanged)
-    packages = Property(list, fget=get_packages, notify=packagesChanged)
-    launchMode = Property(str, fget=get_launch_mode, fset=set_launch_mode, notify=launchModeChanged)
-    launchWithScreenOff = Property(bool, fget=get_launch_with_screen_off, fset=set_launch_with_screen_off, notify=launchWithScreenOffChanged)
-    audioForwarding = Property(bool, fget=get_audio_forwarding, fset=set_audio_forwarding, notify=audioForwardingChanged)
-    currentProfile = Property(str, fget=get_current_profile, fset=set_current_profile, notify=currentProfileChanged)
-    profiles = Property(list, fget=get_profiles, notify=profilesChanged)
-    currentDeviceSerial = Property(str, fget=get_current_device_serial, notify=statusMessage)
-
+    # Properties
+    @Property(list, notify=devicesChanged)
+    def devices(self): return self._devices
+    @Property(list, notify=packagesChanged)
+    def packages(self): return self._packages
+    @Property(str, notify=launchModeChanged)
+    def launchMode(self): return self._launch_mode
+    @launchMode.setter
+    def launchMode(self, m):
+        if self._launch_mode != m: self._launch_mode = m; self.launchModeChanged.emit(m)
+    @Property(bool, notify=launchWithScreenOffChanged)
+    def launchWithScreenOff(self): return self._launch_with_screen_off
+    @launchWithScreenOff.setter
+    def launchWithScreenOff(self, e):
+        if self._launch_with_screen_off != e: self._launch_with_screen_off = e; self.launchWithScreenOffChanged.emit(e)
+    @Property(bool, notify=audioForwardingChanged)
+    def audioForwarding(self): return self._audio_forwarding
+    @audioForwarding.setter
+    def audioForwarding(self, e):
+        if self._audio_forwarding != e: self._audio_forwarding = e; self.audioForwardingChanged.emit(e)
+    @Property(str, notify=currentProfileChanged)
+    def currentProfile(self): return self._current_profile
+    @currentProfile.setter
+    def currentProfile(self, p):
+        if self._current_profile != p: self._current_profile = p; self.currentProfileChanged.emit(p)
+    @Property(list, notify=profilesChanged)
+    def profiles(self): return self._profiles
+    @Property(str, notify=statusMessage)
+    def currentDeviceSerial(self): return self._current_device_serial
     @Property(QObject, constant=True)
     def packagesModel(self): return self._package_model
 
+    # Slots
     @Slot()
     def refresh_devices(self): self.requestDevices.emit()
-
-    @Slot(list)
-    def _on_devices_ready(self, devices):
-        for device in devices:
-            serial = device.get("serial", "")
-            if serial in self._device_names:
-                device["custom_name"] = self._device_names[serial]
-            if serial:
-                self.requestDeviceStatus.emit(serial)
-        if devices != self._devices:
-            self._devices = devices
-            self.devicesChanged.emit(self._devices)
-    
-    @Slot(str, dict)
-    def _on_device_status_ready(self, serial, status_info):
-        self._device_status[serial] = status_info
-        self.deviceStatusChanged.emit(serial, status_info)
-        if self._clipboard_sync_enabled.get(serial, False):
-            self.requestGetClipboard.emit(serial)
-
-    @Slot(str, list)
-    def _on_packages_ready(self, serial, packages):
-        if serial == self._current_device_serial:
-            self._packages = packages
-            self._package_model.setPackages(packages)
-            self.packagesChanged.emit(packages)
-
-    @Slot(str)
-    def _on_worker_error(self, message):
-        self.statusMessage.emit(f"Error: {message}")
-    
-    @Slot(str, str)
-    def _on_icon_ready(self, package_name, icon_path):
-        self._package_model.updateIcon(package_name, icon_path)
-        # Update original list for consistency
-        for i, app in enumerate(self._packages):
-            if app.get("package") == package_name:
-                app["icon"] = icon_path
-                break
-    
-    @Slot(str, str, int)
-    def _on_file_transfer_progress(self, serial, operation, progress):
-        self._file_transfer_progress[(serial, operation)] = progress
-        self.fileTransferProgress.emit(serial, operation, progress)
-    
-    @Slot(str, str, bool)
-    def _on_file_transfer_complete(self, serial, operation, success):
-        if (serial, operation) in self._file_transfer_progress:
-            del self._file_transfer_progress[(serial, operation)]
-        self.fileTransferComplete.emit(serial, operation, success)
-        msg = "completed" if success else "failed"
-        self.statusMessage.emit(f"File {operation} {msg} for {serial}")
-    
-    @Slot()
-    def _on_desktop_clipboard_data_changed(self):
-        try:
-            current_text = self._clipboard.text()
-            if current_text and current_text != self._last_clipboard_text:
-                self._last_clipboard_text = current_text
-                for serial, enabled in self._clipboard_sync_enabled.items():
-                    if enabled:
-                        self.requestSetClipboard.emit(serial, current_text)
-                self._add_to_clipboard_history(current_text)
-        except: pass
-
-    @Slot(str, str)
-    def _on_device_clipboard_changed(self, serial, text):
-        if self._clipboard_sync_enabled.get(serial, False) and self._clipboard and text:
-            if text != self._clipboard.text():
-                self._clipboard.setText(text)
-                self._last_clipboard_text = text
-                self._add_to_clipboard_history(text)
-
-    @Slot(str, str)
-    def _on_device_control_changed(self, serial, control_type):
-        self.deviceControlChanged.emit(serial, control_type)
-
-    def _add_to_clipboard_history(self, text: str):
-        if text and text not in self._clipboard_history:
-            self._clipboard_history.insert(0, text)
-            if len(self._clipboard_history) > self._max_clipboard_history:
-                self._clipboard_history = self._clipboard_history[:self._max_clipboard_history]
-
-    @Slot(str, str)
-    @Slot(str, str, str)
-    def push_file_to_device(self, serial: str, local_path: str, remote_path: str = ""):
-        if not serial or not local_path: return
-        if not remote_path:
-            remote_path = f"/sdcard/Download/{os.path.basename(local_path)}"
-        self.requestPushFile.emit(serial, local_path, remote_path)
-
-    @Slot(str, str, str)
-    def pull_file_from_device(self, serial, remote, local):
-        if serial and remote and local:
-            self.requestPullFile.emit(serial, remote, local)
-
     @Slot(str)
     def select_device(self, serial):
-        self._current_device_serial = serial
-        self.statusMessage.emit(f"Selected: {serial}")
-        self._packages = []
-        self._package_model.clear()
-        self.packagesChanged.emit([])
-        self.requestPackages.emit(serial)
-
+        self._current_device_serial = serial; self.statusMessage.emit(f"Selected: {serial}")
+        self._package_model.clear(); self.requestPackages.emit(serial)
     @Slot(str)
     def toggle_screen(self, serial):
         if serial: self.requestToggleScreen.emit(serial)
-
-    def _get_display_params(self, serial, mode):
-        width, height, density = 1280, 800, 240
-        if mode == "Desktop":
-            width, height, density = 1920, 1080, 240
-        elif mode == "Phone":
-            status = self._device_status.get(serial, {})
-            width = status.get("width", 1080)
-            height = status.get("height", 2400)
-            density = status.get("density", 400)
-        return width, height, density
-
     @Slot(str)
     def mirror_device(self, serial):
         if not serial: return
-        self.statusMessage.emit(f"Mirroring {serial}...")
         self._scrcpy.mirror(serial, forward_audio=self._audio_forwarding, 
-                           turn_screen_off=self._launch_with_screen_off, 
-                           extra_flags=get_profile_flags(self._current_profile))
-
+                           turn_screen_off=self._launch_with_screen_off, extra_flags=get_profile_flags(self._current_profile))
     @Slot(str, str)
     def open_display(self, serial, mode):
         if not serial: return
-        self.statusMessage.emit(f"Opening {mode} display for {serial}...")
         w, h, d = self._get_display_params(serial, mode)
-        self._scrcpy.create_display(serial, width=w, height=h, dpi=d, 
-                                   forward_audio=self._audio_forwarding, 
-                                   turn_screen_off=self._launch_with_screen_off, 
-                                   extra_flags=get_profile_flags(self._current_profile))
-
+        self._scrcpy.create_display(serial, width=w, height=h, dpi=d, forward_audio=self._audio_forwarding, 
+                                   turn_screen_off=self._launch_with_screen_off, extra_flags=get_profile_flags(self._current_profile))
     @Slot(str)
     def launch_app(self, package_name):
         if not self._current_device_serial: return
-        self.statusMessage.emit(f"Launching {package_name}...")
         w, h, d = self._get_display_params(self._current_device_serial, self._launch_mode)
         self._scrcpy.launch_app(self._current_device_serial, package_name, width=w, height=h, 
                                dpi=d, turn_screen_off=self._launch_with_screen_off, 
-                               forward_audio=self._audio_forwarding, 
-                               extra_flags=get_profile_flags(self._current_profile))
+                               forward_audio=self._audio_forwarding, extra_flags=get_profile_flags(self._current_profile))
+    @Slot(str, str)
+    @Slot(str, str, str)
+    def push_file_to_device(self, s, l, r=""):
+        if not s or not l: return
+        r = r or f"/sdcard/Download/{os.path.basename(l)}"
+        self.requestPushFile.emit(s, l, r)
+    @Slot(str, str, str)
+    def pull_file_from_device(self, s, r, l):
+        if s and r and l: self.requestPullFile.emit(s, r, l)
+    
+    # Internal Handlers
+    @Slot(list)
+    def _on_devices_ready(self, devices):
+        for d in devices:
+            if d['serial'] in self._device_names: d["custom_name"] = self._device_names[d['serial']]
+            self.requestDeviceStatus.emit(d['serial'])
+        if devices != self._devices: self._devices = devices; self.devicesChanged.emit(self._devices)
+    @Slot(str, dict)
+    def _on_device_status_ready(self, s, st):
+        self._device_status[s] = st; self.deviceStatusChanged.emit(s, st)
+        if self._clipboard_sync_enabled.get(s, False): self.requestGetClipboard.emit(s)
+    @Slot(str, list)
+    def _on_packages_ready(self, serial, packages):
+        if serial == self._current_device_serial: self._package_model.setPackages(packages)
+    @Slot(str, str)
+    def _on_icon_ready(self, pkg, path): self._package_model.updateIcon(pkg, path)
+    @Slot(str, str, int)
+    def _on_file_transfer_progress(self, s, o, p): self.fileTransferProgress.emit(s, o, p)
+    @Slot(str, str, bool)
+    def _on_file_transfer_complete(self, s, o, sc): self.fileTransferComplete.emit(s, o, sc)
+    @Slot(str, str)
+    def _on_screenshot_ready(self, s, p): 
+        self.screenshotReady.emit(s, p)
+        self.statusMessage.emit(f"Screenshot saved: {os.path.basename(p)}")
+    @Slot(str, str)
+    def _on_device_control_changed(self, s, c): self.deviceControlChanged.emit(s, c)
+    @Slot(str)
+    def _on_worker_error(self, m): self.statusMessage.emit(f"Error: {m}")
+    @Slot()
+    def _on_desktop_clipboard_data_changed(self):
+        try:
+            txt = self._clipboard.text()
+            if txt and txt != self._last_clipboard_text:
+                self._last_clipboard_text = txt
+                for s, e in self._clipboard_sync_enabled.items():
+                    if e: self.requestSetClipboard.emit(s, txt)
+                self._add_to_clipboard_history(txt)
+        except: pass
+    @Slot(str, str)
+    def _on_device_clipboard_changed(self, s, t):
+        if self._clipboard_sync_enabled.get(s, False) and self._clipboard and t:
+            if t != self._clipboard.text():
+                self._clipboard.setText(t); self._last_clipboard_text = t; self._add_to_clipboard_history(t)
 
-    # --- Sync Getters (Non-blocking cache) ---
+    # Sync Getters
     @Slot(str, str, result=int)
     def get_volume(self, s, st): return self._device_status.get(s, {}).get(f"volume_{st}", 0)
     @Slot(str, result=int)
@@ -406,12 +315,8 @@ class BackendBridge(QObject):
     def get_rotation_lock(self, s): return self._device_status.get(s, {}).get("rotation_locked", False)
     @Slot(str, result=bool)
     def get_airplane_mode(self, s): return self._device_status.get(s, {}).get("airplane_mode", False)
-    @Slot(str, result=bool)
-    def get_wifi_enabled(self, s): return self._device_status.get(s, {}).get("wifi_enabled", True)
-    @Slot(str, result=bool)
-    def get_bluetooth_enabled(self, s): return self._device_status.get(s, {}).get("bluetooth_enabled", False)
-
-    # --- Setters ---
+    
+    # Setters
     @Slot(str, str, int)
     def set_volume(self, s, st, l): self.requestSetVolume.emit(s, st, l)
     @Slot(str, int)
@@ -436,44 +341,43 @@ class BackendBridge(QObject):
         if path: self.push_file_to_device(s, path)
     @Slot(str)
     def fetch_icon_for_package(self, p): self.requestIcon.emit(self._current_device_serial, p)
-
-    # --- Other Methods ---
-    def _load_device_names(self):
-        j = self._settings.value("device_names", "{}")
-        try: return json.loads(j) if j else {}
-        except: return {}
-    def _save_device_names(self): self._settings.setValue("device_names", json.dumps(self._device_names))
-    def _load_device_groups(self):
-        j = self._settings.value("device_groups", "{}")
-        try: return json.loads(j) if j else {}
-        except: return {}
-    def _save_device_groups(self): self._settings.setValue("device_groups", json.dumps(self._device_groups))
-
-    @Slot(str, str)
-    def set_device_name(self, s, n):
-        if s: self._device_names[s] = n; self._save_device_names()
-        for d in self._devices:
-            if d.get("serial") == s: d["custom_name"] = n
-        self.devicesChanged.emit(self._devices)
-
     @Slot(str, result="QVariantMap")
     def connect_wireless_device(self, a):
         if ":" not in a: a = f"{a}:5555"
         self.requestConnectWireless.emit(a)
-        return {"success": True, "message": "Connection attempt started"}
-
+        return {"success": True, "message": "Triggered connect"}
     @Slot(str, str, result="QVariantMap")
     def pair_wireless_device(self, a, c):
-        # Move pairing to worker would be better, but for now...
         s, m = self._worker.adb_handler.pair_device(a, c)
         return {"success": s, "message": m}
-
     @Slot(str, result="QVariantMap")
     def disconnect_wireless_device(self, a):
         s, m = self._worker.adb_handler.disconnect_device(a)
         self.requestDevices.emit()
         return {"success": s, "message": m}
+    @Slot(str, str)
+    def set_device_name(self, s, n):
+        if s: self._device_names[s] = n; self._settings.setValue("device_names", json.dumps(self._device_names))
+        for d in self._devices:
+            if d.get("serial") == s: d["custom_name"] = n
+        self.devicesChanged.emit(self._devices)
 
+    # Helpers
+    def _get_display_params(self, s, m):
+        w, h, d = 1280, 800, 240
+        if m == "Desktop": w, h, d = 1920, 1080, 240
+        elif m == "Phone":
+            st = self._device_status.get(s, {})
+            w, h, d = st.get("width", 1080), st.get("height", 2400), st.get("density", 400)
+        return w, h, d
+    def _load_device_names(self):
+        j = self._settings.value("device_names", "{}")
+        try: return json.loads(j) if j else {}
+        except: return {}
+    def _add_to_clipboard_history(self, t):
+        if t and t not in self._clipboard_history:
+            self._clipboard_history.insert(0, t)
+            if len(self._clipboard_history) > self._max_clipboard_history: self._clipboard_history = self._clipboard_history[:self._max_clipboard_history]
     def cleanup(self):
         if self._worker: self._worker.stop()
         if self._timer: self._timer.stop()
