@@ -9,297 +9,312 @@ Rectangle {
     height: parent.height
     color: Style.surface
     
-    // Background Pattern (subtle dots like Prism)
-    Canvas {
-        anchors.fill: parent
-        opacity: 0.1
-        onPaint: {
-            var ctx = getContext("2d");
-            ctx.fillStyle = "#ffffff";
-            for (var x = 0; x < width; x += 20) {
-                for (var y = 0; y < height; y += 20) {
-                    ctx.fillRect(x, y, 1, 1);
-                }
-            }
-        }
-    }
-
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 0; spacing: 0
 
-        // App Header (Wired Style)
+        // App Header
         Rectangle {
-            Layout.fillWidth: true; height: 80; color: "transparent"
+            Layout.fillWidth: true; height: Style.headerHeight; color: Style.background
             RowLayout {
-                anchors.fill: parent; anchors.leftMargin: 24; spacing: 15
+                anchors.fill: parent; anchors.leftMargin: Style.spacingMedium; anchors.rightMargin: Style.spacingMedium; spacing: 12
                 Rectangle {
-                    width: 32; height: 32; radius: 8; color: "#000"
-                    border.color: Style.accent; border.width: 2
-                    Text { anchors.centerIn: parent; text: "U"; color: Style.accent; font.bold: true; font.pixelSize: 18 }
+                    width: 24; height: 24; radius: 4; color: Style.accent
+                    Text { anchors.centerIn: parent; text: "U"; color: "white"; font.bold: true; font.pixelSize: 14 }
                 }
-                Column {
-                    Text { text: "UMC_CORE"; font.pixelSize: 14; font.weight: Font.Black; color: "#fff"; font.letterSpacing: -0.5 }
-                    Text { text: "UNIFIED MOBILE CONTROLLER"; font.pixelSize: 8; font.weight: Font.Bold; color: Style.accent; opacity: 0.8 }
+                Text { text: "UMC Manager"; font: Style.headerFont; color: Style.textPrimary }
+                Item { Layout.fillWidth: true }
+            }
+        }
+        
+        Rectangle { Layout.fillWidth: true; height: 1; color: Style.divider }
+
+        // Wireless Connection Section
+        Rectangle {
+            id: connectSection
+            Layout.fillWidth: true; Layout.margins: Style.spacingSmall
+            height: connectExpanded ? 180 : 36
+            radius: 4; color: Style.surfaceLight
+            property bool connectExpanded: false
+            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            
+            MouseArea {
+                anchors.fill: parent; anchors.topMargin: 0; height: 36
+                cursorShape: Qt.PointingHandCursor
+                onClicked: connectSection.connectExpanded = !connectSection.connectExpanded
+            }
+            
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 8; spacing: 8
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    Icon { name: "wifi"; size: 14; color: Style.accent }
+                    Text { text: "Connect Device"; font.pixelSize: 11; font.weight: Font.Medium; color: Style.textPrimary; Layout.fillWidth: true }
+                    Icon { name: "expand_more"; size: 14; color: Style.textSecondary; rotation: connectSection.connectExpanded ? 180 : 0 }
+                }
+                
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 6
+                    visible: connectSection.connectExpanded
+                    opacity: connectSection.connectExpanded ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 4
+                        TextField {
+                            id: ipAddressField; Layout.fillWidth: true; placeholderText: "IP:port"; font.pixelSize: 10; height: 28
+                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider }
+                            onAccepted: if (text && bridge) bridge.connect_wireless_device(text)
+                        }
+                        Rectangle {
+                            width: 28; height: 28; radius: 2; color: Style.surface; border.color: Style.divider; border.width: 1
+                            Icon { anchors.centerIn: parent; name: "link"; size: 12; color: Style.textSecondary }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: if (ipAddressField.text && bridge) bridge.connect_wireless_device(ipAddressField.text)
+                            }
+                        }
+                    }
+                    
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Style.divider }
+                    Text { text: "Android 11+ Pairing"; font.pixelSize: 9; color: Style.textSecondary }
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 4
+                        TextField {
+                            id: pairAddressField; Layout.fillWidth: true; placeholderText: "IP:port"; font.pixelSize: 10; height: 26
+                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider }
+                        }
+                        TextField {
+                            id: pairingCodeField; Layout.preferredWidth: 60; placeholderText: "Code"; font.pixelSize: 10; height: 26
+                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider }
+                        }
+                        Rectangle {
+                            width: 26; height: 26; radius: 2; color: Style.surface; border.color: Style.divider; border.width: 1
+                            Text { anchors.centerIn: parent; text: "P"; font.pixelSize: 10; font.weight: Font.Bold; color: Style.textSecondary }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: if (pairAddressField.text && pairingCodeField.text && bridge) bridge.pair_wireless_device(pairAddressField.text, pairingCodeField.text)
+                            }
+                        }
+                    }
+                    
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Style.divider }
+                    Button {
+                        text: "Enable TCP/IP (USB)"; Layout.fillWidth: true; font.pixelSize: 9
+                        onClicked: if (bridge && bridge.currentDeviceSerial) bridge.enable_tcpip_mode(bridge.currentDeviceSerial, 5555)
+                    }
+                }
+            }
+        }
+
+        // Section Title: Devices
+        Item {
+            Layout.fillWidth: true; height: 40
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: Style.spacingMedium; anchors.rightMargin: Style.spacingMedium
+                Text { text: "CONNECTED DEVICES"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Style.textSecondary; Layout.fillWidth: true }
+                Icon { 
+                    name: "refresh"; size: 14; color: Style.textSecondary 
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bridge.refresh_devices() }
+                }
+            }
+        }
+
+        // Device List
+        ListView {
+            id: deviceList
+            Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+            model: bridge ? bridge.devices : []
+            boundsBehavior: Flickable.StopAtBounds
+            
+            delegate: Rectangle {
+                id: deviceDelegate
+                width: ListView.view.width; height: expanded ? 450 : 60
+                color: (bridge && bridge.currentDeviceSerial === modelData.serial) ? Style.surfaceHighlight : "transparent"
+                property bool expanded: false
+                property var deviceStatus: modelData.status_data || {}
+                
+                // NO MORE INDIVIDUAL CONNECTIONS FOR STATUS!
+                // We use modelData.status_data which is updated by the bridge.
+
+                MouseArea {
+                    anchors.fill: parent; anchors.rightMargin: 100
+                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: bridge.select_device(modelData.serial)
+                    onDoubleClicked: deviceDelegate.expanded = !deviceDelegate.expanded
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 12; spacing: 8
+                    
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 12
+                        Icon { name: "device_phone"; size: 16; color: (bridge && bridge.currentDeviceSerial === modelData.serial) ? Style.accent : Style.textSecondary }
+                        ColumnLayout {
+                            Layout.fillWidth: true; spacing: 2
+                            Text { text: modelData.custom_name || modelData.model; color: Style.textPrimary; font.pixelSize: 12; font.weight: Font.Medium; elide: Text.ElideRight; Layout.fillWidth: true }
+                            Text { text: modelData.serial; color: Style.textDisabled; font.pixelSize: 10; elide: Text.ElideRight; Layout.fillWidth: true }
+                        }
+                        
+                        // Status Bar
+                        RowLayout {
+                            visible: !deviceDelegate.expanded && deviceStatus.battery_level !== undefined
+                            spacing: 8
+                            Rectangle {
+                                width: 30; height: 10; color: Style.surfaceLight; radius: 2
+                                Rectangle {
+                                    width: parent.width * (deviceStatus.battery_level || 0) / 100
+                                    height: parent.height; color: (deviceStatus.battery_level > 20) ? "#4CAF50" : "#F44336"; radius: 2
+                                }
+                            }
+                            Text { text: deviceStatus.network_type === "wifi" ? "WiFi" : "USB"; font.pixelSize: 8; color: Style.textSecondary }
+                        }
+
+                        // Expand/Power/Mirror Row
+                        RowLayout {
+                            spacing: 4
+                            Rectangle {
+                                width: 24; height: 24; radius: 4; color: "transparent"
+                                Icon { anchors.centerIn: parent; name: "open_in_new"; size: 14; color: Style.textSecondary }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: openMenu.open() }
+                                Menu {
+                                    id: openMenu; y: 24; width: 180
+                                    background: Rectangle { color: Style.surface; border.color: Style.divider; radius: 4 }
+                                    MenuItem { text: "Mirror (Default)"; onTriggered: bridge.mirror_device(modelData.serial) }
+                                    MenuItem { text: "New Phone Screen"; onTriggered: bridge.open_display(modelData.serial, "Phone") }
+                                    MenuItem { text: "New Tablet Screen"; onTriggered: bridge.open_display(modelData.serial, "Tablet") }
+                                    MenuItem { text: "New Desktop Screen"; onTriggered: bridge.open_display(modelData.serial, "Desktop") }
+                                }
+                            }
+                            Rectangle {
+                                width: 24; height: 24; radius: 4; color: "transparent"
+                                Icon { anchors.centerIn: parent; name: "power"; size: 14; color: Style.textSecondary }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bridge.toggle_screen(modelData.serial) }
+                            }
+                            Rectangle {
+                                width: 24; height: 24; radius: 4; color: "transparent"
+                                Icon { anchors.centerIn: parent; name: "expand_more"; size: 14; rotation: deviceDelegate.expanded ? 180 : 0 }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: deviceDelegate.expanded = !deviceDelegate.expanded }
+                            }
+                        }
+                    }
+
+                    // --- Expanded Controls ---
+                    ColumnLayout {
+                        Layout.fillWidth: true; visible: deviceDelegate.expanded; spacing: 12
+                        
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Style.divider }
+
+                        // Stats Grid
+                        GridLayout {
+                            columns: 2; Layout.fillWidth: true
+                            Text { text: "Battery:"; font.pixelSize: 10; color: Style.textSecondary }
+                            Text { text: (deviceStatus.battery_level || 0) + "% (" + (deviceStatus.battery_status || "N/A") + ")"; font.pixelSize: 10; color: Style.textPrimary; Layout.alignment: Qt.AlignRight }
+                            Text { text: "Storage:"; font.pixelSize: 10; color: Style.textSecondary }
+                            Text { text: deviceStatus.storage ? (Math.round(deviceStatus.storage.used/1024) + "GB / " + Math.round(deviceStatus.storage.total/1024) + "GB") : "N/A"; font.pixelSize: 10; color: Style.textPrimary; Layout.alignment: Qt.AlignRight }
+                            Text { text: "Temp:"; font.pixelSize: 10; color: Style.textSecondary }
+                            Text { text: (deviceStatus.temperature || 0) + "°C"; font.pixelSize: 10; color: Style.textPrimary; Layout.alignment: Qt.AlignRight }
+                        }
+
+                        // Volume
+                        ColumnLayout {
+                            Layout.fillWidth: true; spacing: 4
+                            Text { text: "Volume (Media): " + Math.round(volSlider.value); font.pixelSize: 9; color: Style.textSecondary }
+                            Slider {
+                                id: volSlider; Layout.fillWidth: true; from: 0; to: 15
+                                value: deviceStatus.volume_music || 0
+                                onMoved: bridge.set_volume(modelData.serial, "music", Math.round(value))
+                            }
+                        }
+
+                        // Brightness
+                        ColumnLayout {
+                            Layout.fillWidth: true; spacing: 4
+                            Text { text: "Brightness: " + Math.round(brightSlider.value); font.pixelSize: 9; color: Style.textSecondary }
+                            Slider {
+                                id: brightSlider; Layout.fillWidth: true; from: 0; to: 255
+                                value: deviceStatus.brightness || 128
+                                onMoved: bridge.set_brightness(modelData.serial, Math.round(value))
+                            }
+                        }
+
+                        // Toggles
+                        GridLayout {
+                            columns: 2; Layout.fillWidth: true; rowSpacing: 10
+                            
+                            RowLayout {
+                                Text { text: "Rotate Lock"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
+                                Switch { 
+                                    checked: deviceStatus.rotation_locked || false
+                                    onToggled: bridge.set_rotation_lock(modelData.serial, checked)
+                                }
+                            }
+                            RowLayout {
+                                Text { text: "Clipboard Sync"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
+                                Switch { 
+                                    checked: bridge.get_clipboard_sync(modelData.serial)
+                                    onToggled: bridge.set_clipboard_sync(modelData.serial, checked)
+                                }
+                            }
+                            RowLayout {
+                                Text { text: "WiFi"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
+                                Switch { 
+                                    checked: deviceStatus.wifi_enabled !== false
+                                    onToggled: bridge.set_wifi_enabled(modelData.serial, checked)
+                                }
+                            }
+                            RowLayout {
+                                Text { text: "Airplane"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
+                                Switch { 
+                                    checked: deviceStatus.airplane_mode || false
+                                    onToggled: bridge.set_airplane_mode(modelData.serial, checked)
+                                }
+                            }
+                        }
+
+                        // Action Buttons
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Button { text: "Screenshot"; Layout.fillWidth: true; onClicked: bridge.capture_screenshot(modelData.serial) }
+                            Button { text: "Files"; Layout.fillWidth: true; onClicked: bridge.request_file_selection(modelData.serial) }
+                        }
+                    }
                 }
             }
         }
         
-        Rectangle { Layout.fillWidth: true; height: 3; color: "#000" }
+        Rectangle { Layout.fillWidth: true; height: 1; color: Style.divider }
 
-        // Sidebar Content
-        ScrollView {
-            Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-            ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+        // Global Launch Settings
+        ColumnLayout {
+            Layout.fillWidth: true; Layout.margins: Style.spacingMedium; spacing: 12
+            Text { text: "GLOBAL SETTINGS"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Style.textSecondary }
             
-            ColumnLayout {
-                width: parent.width; spacing: 20
-                anchors.margins: 16
-
-                // 1. Connect Section (Hybrid Style)
-                Rectangle {
-                    id: connectSection
-                    Layout.fillWidth: true; height: connectExpanded ? 220 : 44
-                    radius: 12; color: Style.surfaceLight; border.color: "#000"; border.width: 2
-                    property bool connectExpanded: false
-                    Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
-                    
-                    MouseArea {
-                        anchors.fill: parent; anchors.topMargin: 0; height: 44
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: connectSection.connectExpanded = !connectSection.connectExpanded
-                    }
-                    
-                    ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 12; spacing: 10
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 10
-                            Icon { name: "wifi"; size: 16; color: Style.accent }
-                            Text { text: "CONNECT DEVICE"; font.pixelSize: 11; font.weight: Font.Black; color: "#fff"; Layout.fillWidth: true }
-                            Icon { name: "expand_more"; size: 14; color: "#fff"; rotation: connectSection.connectExpanded ? 180 : 0 }
-                        }
-                        
-                        ColumnLayout {
-                            Layout.fillWidth: true; spacing: 8; visible: connectSection.connectExpanded
-                            TextField {
-                                id: ipAddressField; Layout.fillWidth: true; placeholderText: "IP:PORT"; font.pixelSize: 11; height: 32
-                                color: "#fff"
-                                background: Rectangle { color: "#000"; radius: 6; border.color: parent.activeFocus ? Style.accent : "#333"; border.width: 1 }
-                                onAccepted: if (text && bridge) bridge.connect_wireless_device(text)
-                            }
-                            Button {
-                                text: "ESTABLISH LINK"; Layout.fillWidth: true
-                                contentItem: Text { text: parent.text; font.weight: Font.Black; color: "#000"; horizontalAlignment: Text.AlignHCenter }
-                                background: Rectangle { color: Style.accent; radius: 6; border.color: "#000"; border.width: 2 }
-                                onClicked: if (ipAddressField.text) bridge.connect_wireless_device(ipAddressField.text)
-                            }
-                        }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 0
+                Repeater {
+                    model: ["Tablet", "Phone", "Desktop"]
+                    delegate: Rectangle {
+                        Layout.fillWidth: true; height: 28; color: (bridge && bridge.launchMode === modelData) ? Style.accent : Style.surfaceLight
+                        Text { anchors.centerIn: parent; text: modelData; color: "white"; font.pixelSize: 11; font.weight: Font.Medium; opacity: (bridge && bridge.launchMode === modelData) ? 1 : 0.5 }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (bridge) bridge.launchMode = modelData }
                     }
                 }
-
-                // 2. Devices List Header
-                Text { text: "UPLINK_STATUS"; font.pixelSize: 10; font.weight: Font.Black; color: Style.textSecondary; opacity: 0.5 }
-
-                // ListView inside ColumnLayout needs specific height or fillHeight
-                ColumnLayout {
-                    Layout.fillWidth: true; spacing: 12
-                    Repeater {
-                        model: bridge ? bridge.devices : []
-                        delegate: Rectangle {
-                            id: deviceDelegate
-                            Layout.fillWidth: true; height: expanded ? 480 : 70
-                            radius: 16; border.width: 2; border.color: isSelected ? Style.accent : "#000"
-                            color: isSelected ? Style.surfaceHighlight : Style.surfaceLight
-                            property bool isSelected: bridge && bridge.currentDeviceSerial === modelData.serial
-                            property bool expanded: false
-                            property var deviceStatus: modelData.status_data || {}
-                            Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutQuad } }
-
-                            ColumnLayout {
-                                anchors.fill: parent; anchors.margins: 12; spacing: 12
-                                
-                                // Device Info Row
-                                RowLayout {
-                                    Layout.fillWidth: true; spacing: 12
-                                    Rectangle {
-                                        width: 36; height: 36; radius: 8; color: "#000"; border.color: "#333"; border.width: 1
-                                        Icon { anchors.centerIn: parent; name: "device_phone"; size: 18; color: deviceDelegate.isSelected ? Style.accent : "#fff" }
-                                    }
-                                    ColumnLayout {
-                                        Layout.fillWidth: true; spacing: 0
-                                        Text { text: (modelData.custom_name || modelData.model).toUpperCase(); color: "#fff"; font.pixelSize: 12; font.weight: Font.Black; elide: Text.ElideRight }
-                                        Text { text: "ID: " + modelData.serial; color: Style.textSecondary; font.pixelSize: 9; font.family: "Monospace" }
-                                    }
-                                    Icon { 
-                                        name: "expand_more"; size: 14; rotation: deviceDelegate.expanded ? 180 : 0; color: "#fff"
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: deviceDelegate.expanded = !deviceDelegate.expanded }
-                                    }
-                                }
-                                
-                                // Compact Status Bar
-                                RowLayout {
-                                    visible: !deviceDelegate.expanded && deviceStatus.battery_level !== undefined
-                                    spacing: 10
-                                    Rectangle {
-                                        width: 40; height: 12; color: "#000"; radius: 4; border.color: "#333"; border.width: 1
-                                        Rectangle {
-                                            width: (parent.width - 2) * (deviceStatus.battery_level || 0) / 100; x: 1; y: 1
-                                            height: parent.height - 2; color: (deviceStatus.battery_level > 20) ? "#4CAF50" : "#F44336"; radius: 2
-                                        }
-                                    }
-                                    Text { text: (deviceStatus.battery_level || 0) + "%"; font.pixelSize: 9; font.weight: Font.Bold; color: "#fff" }
-                                    Rectangle { width: 4; height: 4; radius: 2; color: "#333" }
-                                    Text { text: deviceStatus.network_type === "wifi" ? "WIRELESS" : "USB_LINK"; font.pixelSize: 8; font.weight: Font.Bold; color: Style.accent }
-                                }
-
-                                // Expanded Controls (Wired/Brutal Style)
-                                ColumnLayout {
-                                    Layout.fillWidth: true; visible: deviceDelegate.expanded; spacing: 15
-                                    
-                                    Rectangle { Layout.fillWidth: true; height: 2; color: "#000" }
-
-                                    // Matrix Stats
-                                    GridLayout {
-                                        columns: 2; Layout.fillWidth: true; rowSpacing: 8
-                                        Text { text: "BATT_LEVEL"; font.pixelSize: 9; font.weight: Font.Bold; color: Style.textSecondary }
-                                        Text { text: (deviceStatus.battery_level || 0) + "% [" + (deviceStatus.battery_status || "IDLE").toUpperCase() + "]"; font.pixelSize: 9; font.weight: Font.Black; color: "#fff"; Layout.alignment: Qt.AlignRight }
-                                        Text { text: "STORAGE_USE"; font.pixelSize: 9; font.weight: Font.Bold; color: Style.textSecondary }
-                                        Text { text: deviceStatus.storage ? (Math.round(deviceStatus.storage.used/1024) + " / " + Math.round(deviceStatus.storage.total/1024) + " GB") : "OFFLINE"; font.pixelSize: 9; font.weight: Font.Black; color: "#fff"; Layout.alignment: Qt.AlignRight }
-                                        Text { text: "THERMAL_CPU"; font.pixelSize: 9; font.weight: Font.Bold; color: Style.textSecondary }
-                                        Text { text: (deviceStatus.temperature || 0) + " °C"; font.pixelSize: 9; font.weight: Font.Black; color: "#fff"; Layout.alignment: Qt.AlignRight }
-                                    }
-
-                                    // Control Sliders
-                                    ColumnLayout {
-                                        Layout.fillWidth: true; spacing: 10
-                                        Column { Layout.fillWidth: true; spacing: 2
-                                            Text { text: "AUDIO_MAGNITUDE"; font.pixelSize: 8; font.weight: Font.Black; color: Style.accent }
-                                            Slider { id: volSlider; Layout.fillWidth: true; from: 0; to: 15; value: deviceStatus.volume_music || 0; onMoved: bridge.set_volume(modelData.serial, "music", Math.round(value)) }
-                                        }
-                                        Column { Layout.fillWidth: true; spacing: 2
-                                            Text { text: "PHOTON_INTENSITY"; font.pixelSize: 8; font.weight: Font.Black; color: Style.accent }
-                                            Slider { id: brightSlider; Layout.fillWidth: true; from: 0; to: 255; value: deviceStatus.brightness || 128; onMoved: bridge.set_brightness(modelData.serial, Math.round(value)) }
-                                        }
-                                    }
-
-                                    // Toggles Grid
-                                    GridLayout {
-                                        columns: 2; Layout.fillWidth: true; rowSpacing: 12; columnSpacing: 12
-                                        
-                                        // Custom Switch Component for Brutalism
-                                        Repeater {
-                                            model: [
-                                                {label: "SYNC_CLIP", checked: bridge.get_clipboard_sync(modelData.serial), toggle: (c) => bridge.set_clipboard_sync(modelData.serial, c)},
-                                                {label: "WIFI_RADIO", checked: deviceStatus.wifi_enabled !== false, toggle: (c) => bridge.set_wifi_enabled(modelData.serial, c)},
-                                                {label: "FLIGHT_MODE", checked: deviceStatus.airplane_mode || false, toggle: (c) => bridge.set_airplane_mode(modelData.serial, c)},
-                                                {label: "ROT_LOCK", checked: deviceStatus.rotation_locked || false, toggle: (c) => bridge.set_rotation_lock(modelData.serial, c)}
-                                            ]
-                                            delegate: RowLayout {
-                                                Layout.fillWidth: true
-                                                Text { text: modelData.label; font.pixelSize: 8; font.weight: Font.Black; color: "#fff"; Layout.fillWidth: true }
-                                                Switch { 
-                                                    checked: modelData.checked
-                                                    onToggled: modelData.toggle(checked)
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Action Buttons
-                                    RowLayout {
-                                        Layout.fillWidth: true; spacing: 8
-                                        Button { 
-                                            text: "SCR_SHOT"; Layout.fillWidth: true; 
-                                            background: Rectangle { color: "#000"; border.color: parent.pressed ? Style.accent : "#444"; border.width: 2; radius: 8 }
-                                            contentItem: Text { text: parent.text; color: "#fff"; font.weight: Font.Black; font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter }
-                                            onClicked: bridge.capture_screenshot(modelData.serial) 
-                                        }
-                                        Button { 
-                                            text: "DRIVE_FS"; Layout.fillWidth: true; 
-                                            background: Rectangle { color: "#000"; border.color: parent.pressed ? Style.accent : "#444"; border.width: 2; radius: 8 }
-                                            contentItem: Text { text: parent.text; color: "#fff"; font.weight: Font.Black; font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter }
-                                            onClicked: bridge.request_file_selection(modelData.serial) 
-                                        }
-                                    }
-                                    
-                                    RowLayout {
-                                        Layout.fillWidth: true; spacing: 8
-                                        Button { 
-                                            text: "MIRROR_LINK"; Layout.fillWidth: true; 
-                                            background: Rectangle { color: "#000"; border.color: parent.pressed ? Style.accent : "#444"; border.width: 2; radius: 8 }
-                                            contentItem: Text { text: parent.text; color: "#fff"; font.weight: Font.Black; font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter }
-                                            onClicked: bridge.mirror_device(modelData.serial) 
-                                        }
-                                        Button { 
-                                            text: "POWER_SIG"; Layout.fillWidth: true; 
-                                            background: Rectangle { color: "#000"; border.color: parent.pressed ? Style.accent : "#444"; border.width: 2; radius: 8 }
-                                            contentItem: Text { text: parent.text; color: "#fff"; font.weight: Font.Black; font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter }
-                                            onClicked: bridge.toggle_screen(modelData.serial) 
-                                        }
-                                    }
-                                }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent; anchors.rightMargin: 80; visible: !deviceDelegate.expanded
-                                onClicked: bridge.select_device(modelData.serial)
-                            }
-                        }
-                    }
-                }
-                
-                Item { height: 20; width: 1 } // Spacer
-
-                // 3. Global Settings (Brutal Minimalism)
-                Rectangle {
-                    Layout.fillWidth: true; Layout.preferredHeight: 280
-                    color: "#000"; radius: 24; border.color: "#333"; border.width: 1
-                    
-                    ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 20; spacing: 15
-                        Text { text: "GLOBAL_SYSTEM_CONFIG"; font.pixelSize: 10; font.weight: Font.Black; color: Style.accent; font.letterSpacing: 1 }
-                        
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 4
-                            Repeater {
-                                model: ["TABLET", "PHONE", "DESKTOP"]
-                                delegate: Button {
-                                    Layout.fillWidth: true; height: 36
-                                    text: modelData
-                                    property bool isActive: bridge && bridge.launchMode === (modelData.charAt(0) + modelData.slice(1).toLowerCase())
-                                    contentItem: Text { text: parent.text; font.weight: Font.Black; font.pixelSize: 9; color: parent.isActive ? "#000" : "#fff"; horizontalAlignment: Text.AlignHCenter }
-                                    background: Rectangle { color: parent.isActive ? Style.accent : "#111"; border.color: "#000"; border.width: 2; radius: 8 }
-                                    onClicked: if (bridge) bridge.launchMode = (modelData.charAt(0) + modelData.slice(1).toLowerCase())
-                                }
-                            }
-                        }
-                        
-                        ColumnLayout {
-                            spacing: 12
-                            CheckBox {
-                                text: "STEALTH_LAUNCH (SCREEN OFF)"; checked: bridge ? bridge.launchWithScreenOff : false
-                                contentItem: Text { text: parent.text; color: "#fff"; font.weight: Font.Bold; font.pixelSize: 9; leftPadding: 30 }
-                                onCheckedChanged: if (bridge) bridge.launchWithScreenOff = checked
-                            }
-                            CheckBox {
-                                text: "SONIC_FORWARDING (AUDIO)"; checked: bridge ? bridge.audioForwarding : false
-                                contentItem: Text { text: parent.text; color: "#fff"; font.weight: Font.Bold; font.pixelSize: 9; leftPadding: 30 }
-                                onCheckedChanged: if (bridge) bridge.audioForwarding = checked
-                            }
-                        }
-                        
-                        Column {
-                            Layout.fillWidth: true; spacing: 5
-                            Text { text: "ENGINE_PROFILE"; font.pixelSize: 8; font.weight: Font.Black; color: Style.textSecondary }
-                            ComboBox {
-                                width: parent.width; model: bridge ? bridge.profiles : []
-                                onActivated: (index) => { if (bridge) bridge.currentProfile = textAt(index) }
-                                Component.onCompleted: if (bridge) currentIndex = find(bridge.currentProfile)
-                                background: Rectangle { color: "#111"; radius: 8; border.color: "#333"; border.width: 1 }
-                                contentItem: Text { text: parent.displayText; color: "#fff"; font.weight: Font.Bold; font.pixelSize: 11; leftPadding: 10; verticalAlignment: Text.AlignVCenter }
-                            }
-                        }
-                    }
-                }
+            }
+            
+            CheckBox {
+                text: "Launch with Screen Off"; checked: bridge ? bridge.launchWithScreenOff : false
+                onCheckedChanged: if (bridge) bridge.launchWithScreenOff = checked
+            }
+            CheckBox {
+                text: "Forward Audio"; checked: bridge ? bridge.audioForwarding : false
+                onCheckedChanged: if (bridge) bridge.audioForwarding = checked
+            }
+            
+            Text { text: "PERFORMANCE PROFILE"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Style.textSecondary }
+            ComboBox {
+                Layout.fillWidth: true; model: bridge ? bridge.profiles : []
+                onActivated: (index) => { if (bridge) bridge.currentProfile = textAt(index) }
+                Component.onCompleted: if (bridge) currentIndex = find(bridge.currentProfile)
             }
         }
     }
