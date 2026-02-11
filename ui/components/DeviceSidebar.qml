@@ -32,14 +32,17 @@ Rectangle {
         Rectangle {
             id: connectSection
             Layout.fillWidth: true; Layout.margins: Style.spacingSmall
-            height: connectExpanded ? 180 : 36
+            height: connectExpanded ? 190 : 36
             radius: 4; color: Style.surfaceLight
             property bool connectExpanded: false
+            z: connectExpanded ? 100 : 1 // Bring to front when expanded
+            
             Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             
+            // Header click area (limited to top 36px)
             MouseArea {
-                anchors.fill: parent; anchors.topMargin: 0; height: 36
-                cursorShape: Qt.PointingHandCursor
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                height: 36; cursorShape: Qt.PointingHandCursor
                 onClicked: connectSection.connectExpanded = !connectSection.connectExpanded
             }
             
@@ -58,11 +61,13 @@ Rectangle {
                     opacity: connectSection.connectExpanded ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 150 } }
                     
+                    // IP Address input
                     RowLayout {
                         Layout.fillWidth: true; spacing: 4
                         TextField {
                             id: ipAddressField; Layout.fillWidth: true; placeholderText: "IP:port"; font.pixelSize: 10; height: 28
-                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider }
+                            color: Style.textPrimary
+                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider; border.width: 1 }
                             onAccepted: if (text && bridge) bridge.connect_wireless_device(text)
                         }
                         Rectangle {
@@ -81,11 +86,13 @@ Rectangle {
                         Layout.fillWidth: true; spacing: 4
                         TextField {
                             id: pairAddressField; Layout.fillWidth: true; placeholderText: "IP:port"; font.pixelSize: 10; height: 26
-                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider }
+                            color: Style.textPrimary
+                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider; border.width: 1 }
                         }
                         TextField {
                             id: pairingCodeField; Layout.preferredWidth: 60; placeholderText: "Code"; font.pixelSize: 10; height: 26
-                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider }
+                            color: Style.textPrimary
+                            background: Rectangle { color: Style.surface; radius: 2; border.color: activeFocus ? Style.accent : Style.divider; border.width: 1 }
                         }
                         Rectangle {
                             width: 26; height: 26; radius: 2; color: Style.surface; border.color: Style.divider; border.width: 1
@@ -132,9 +139,6 @@ Rectangle {
                 color: (bridge && bridge.currentDeviceSerial === modelData.serial) ? Style.surfaceHighlight : "transparent"
                 property bool expanded: false
                 property var deviceStatus: modelData.status_data || {}
-                
-                // NO MORE INDIVIDUAL CONNECTIONS FOR STATUS!
-                // We use modelData.status_data which is updated by the bridge.
 
                 MouseArea {
                     anchors.fill: parent; anchors.rightMargin: 100
@@ -155,7 +159,6 @@ Rectangle {
                             Text { text: modelData.serial; color: Style.textDisabled; font.pixelSize: 10; elide: Text.ElideRight; Layout.fillWidth: true }
                         }
                         
-                        // Status Bar
                         RowLayout {
                             visible: !deviceDelegate.expanded && deviceStatus.battery_level !== undefined
                             spacing: 8
@@ -169,7 +172,6 @@ Rectangle {
                             Text { text: deviceStatus.network_type === "wifi" ? "WiFi" : "USB"; font.pixelSize: 8; color: Style.textSecondary }
                         }
 
-                        // Expand/Power/Mirror Row
                         RowLayout {
                             spacing: 4
                             Rectangle {
@@ -198,13 +200,9 @@ Rectangle {
                         }
                     }
 
-                    // --- Expanded Controls ---
                     ColumnLayout {
                         Layout.fillWidth: true; visible: deviceDelegate.expanded; spacing: 12
-                        
                         Rectangle { Layout.fillWidth: true; height: 1; color: Style.divider }
-
-                        // Stats Grid
                         GridLayout {
                             columns: 2; Layout.fillWidth: true
                             Text { text: "Battery:"; font.pixelSize: 10; color: Style.textSecondary }
@@ -214,8 +212,6 @@ Rectangle {
                             Text { text: "Temp:"; font.pixelSize: 10; color: Style.textSecondary }
                             Text { text: (deviceStatus.temperature || 0) + "°C"; font.pixelSize: 10; color: Style.textPrimary; Layout.alignment: Qt.AlignRight }
                         }
-
-                        // Volume
                         ColumnLayout {
                             Layout.fillWidth: true; spacing: 4
                             Text { text: "Volume (Media): " + Math.round(volSlider.value); font.pixelSize: 9; color: Style.textSecondary }
@@ -225,8 +221,6 @@ Rectangle {
                                 onMoved: bridge.set_volume(modelData.serial, "music", Math.round(value))
                             }
                         }
-
-                        // Brightness
                         ColumnLayout {
                             Layout.fillWidth: true; spacing: 4
                             Text { text: "Brightness: " + Math.round(brightSlider.value); font.pixelSize: 9; color: Style.textSecondary }
@@ -236,42 +230,17 @@ Rectangle {
                                 onMoved: bridge.set_brightness(modelData.serial, Math.round(value))
                             }
                         }
-
-                        // Toggles
                         GridLayout {
                             columns: 2; Layout.fillWidth: true; rowSpacing: 10
-                            
                             RowLayout {
                                 Text { text: "Rotate Lock"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
-                                Switch { 
-                                    checked: deviceStatus.rotation_locked || false
-                                    onToggled: bridge.set_rotation_lock(modelData.serial, checked)
-                                }
+                                Switch { checked: deviceStatus.rotation_locked || false; onToggled: bridge.set_rotation_lock(modelData.serial, checked) }
                             }
                             RowLayout {
                                 Text { text: "Clipboard Sync"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
-                                Switch { 
-                                    checked: bridge.get_clipboard_sync(modelData.serial)
-                                    onToggled: bridge.set_clipboard_sync(modelData.serial, checked)
-                                }
-                            }
-                            RowLayout {
-                                Text { text: "WiFi"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
-                                Switch { 
-                                    checked: deviceStatus.wifi_enabled !== false
-                                    onToggled: bridge.set_wifi_enabled(modelData.serial, checked)
-                                }
-                            }
-                            RowLayout {
-                                Text { text: "Airplane"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
-                                Switch { 
-                                    checked: deviceStatus.airplane_mode || false
-                                    onToggled: bridge.set_airplane_mode(modelData.serial, checked)
-                                }
+                                Switch { checked: bridge.get_clipboard_sync(modelData.serial); onToggled: bridge.set_clipboard_sync(modelData.serial, checked) }
                             }
                         }
-
-                        // Action Buttons
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Button { text: "Screenshot"; Layout.fillWidth: true; onClicked: bridge.capture_screenshot(modelData.serial) }
@@ -288,7 +257,6 @@ Rectangle {
         ColumnLayout {
             Layout.fillWidth: true; Layout.margins: Style.spacingMedium; spacing: 12
             Text { text: "GLOBAL SETTINGS"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Style.textSecondary }
-            
             RowLayout {
                 Layout.fillWidth: true; spacing: 0
                 Repeater {
@@ -300,16 +268,8 @@ Rectangle {
                     }
                 }
             }
-            
-            CheckBox {
-                text: "Launch with Screen Off"; checked: bridge ? bridge.launchWithScreenOff : false
-                onCheckedChanged: if (bridge) bridge.launchWithScreenOff = checked
-            }
-            CheckBox {
-                text: "Forward Audio"; checked: bridge ? bridge.audioForwarding : false
-                onCheckedChanged: if (bridge) bridge.audioForwarding = checked
-            }
-            
+            CheckBox { text: "Launch with Screen Off"; checked: bridge ? bridge.launchWithScreenOff : false; onCheckedChanged: if (bridge) bridge.launchWithScreenOff = checked }
+            CheckBox { text: "Forward Audio"; checked: bridge ? bridge.audioForwarding : false; onCheckedChanged: if (bridge) bridge.audioForwarding = checked }
             Text { text: "PERFORMANCE PROFILE"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Style.textSecondary }
             ComboBox {
                 Layout.fillWidth: true; model: bridge ? bridge.profiles : []

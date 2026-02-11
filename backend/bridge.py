@@ -138,7 +138,6 @@ class BackendBridge(QObject):
         self._settings = QSettings("UMC", "DeviceManager")
         self._device_names = self._load_device_names()
         self._is_loading = False
-        
         self._clipboard_sync_enabled = {}
         self._clipboard_history = []
         self._max_clipboard_history = 50
@@ -252,7 +251,6 @@ class BackendBridge(QObject):
         self._scrcpy.launch_app(self._current_device_serial, package_name, width=w, height=h, 
                                dpi=d, turn_screen_off=self._launch_with_screen_off, 
                                forward_audio=self._audio_forwarding, extra_flags=get_profile_flags(self._current_profile))
-    @Slot(str, str)
     @Slot(str, str, str)
     def push_file_to_device(self, s, l, r=""):
         if not s or not l: return
@@ -265,6 +263,11 @@ class BackendBridge(QObject):
     # Internal Handlers
     @Slot(list)
     def _on_devices_ready(self, devices):
+        serials = [d['serial'] for d in devices]
+        if self._current_device_serial and self._current_device_serial not in serials:
+            self._current_device_serial = ""; self.currentDeviceChanged.emit("")
+            self._package_model.clear(); self.statusMessage.emit("Device disconnected")
+
         for d in devices:
             s = d['serial']
             if s in self._device_names: d["custom_name"] = self._device_names[s]
