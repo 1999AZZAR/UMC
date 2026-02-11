@@ -66,11 +66,12 @@ Item {
             // Grid View
             GridView {
                 id: appGridView
-                cellWidth: 140; cellHeight: 160; clip: true
+                cellWidth: width / Math.floor(width / 140) // Smart width adaptation
+                cellHeight: 160; clip: true
                 model: bridge ? bridge.packagesModel : null
                 
                 delegate: Item {
-                    width: 140; height: 160
+                    width: appGridView.cellWidth; height: appGridView.cellHeight
                     
                     Rectangle {
                         id: cardBg
