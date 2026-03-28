@@ -24,6 +24,7 @@ def main():
 
     # Create the bridge
     bridge = BackendBridge()
+    app.aboutToQuit.connect(bridge.cleanup)
     
     # Handle SIGINT (Ctrl+C) for quick shutdown
     def signal_handler(sig, frame):
@@ -54,7 +55,6 @@ def main():
         sys.exit(-1)
 
     ret = app.exec()
-    bridge.cleanup()
     sys.exit(ret)
 
 if __name__ == "__main__":

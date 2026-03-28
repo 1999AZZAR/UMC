@@ -236,11 +236,16 @@ class BackendBridge(QObject):
     @Property(bool, notify=loadingChanged)
     def loading(self): return self._is_loading
 
+    def _emit_action_error(self, action: str, error: Exception):
+        self.statusMessage.emit(f"{action} failed: {error}")
+
     # --- Slots for QML ---
     @Slot()
     def refresh_devices(self): 
-        try: self.requestDevices.emit()
-        except: pass
+        try:
+            self.requestDevices.emit()
+        except Exception as e:
+            self.statusMessage.emit(f"Refresh failed: {e}")
     @Slot(str)
     def select_device(self, serial):
         try:
@@ -249,35 +254,63 @@ class BackendBridge(QObject):
             self._is_loading = True; self.loadingChanged.emit(True)
             self.statusMessage.emit(f"Selected: {serial}")
             self._package_model.clear(); self.requestPackages.emit(serial)
-        except Exception as e: print(f"Error in select_device: {e}")
+        except Exception as e:
+            self._emit_action_error("Select device", e)
     @Slot(str)
     def toggle_screen(self, serial):
         try:
             if serial: self.requestToggleScreen.emit(serial)
-        except: pass
+        except Exception as e:
+            self._emit_action_error("Toggle screen", e)
     @Slot(str)
     def mirror_device(self, serial):
         try:
             if not serial: return
-            self._scrcpy.mirror(serial, width=1280, height=720, turn_screen_off=self._launch_with_screen_off, 
-                               forward_audio=self._audio_forwarding, extra_flags=get_profile_flags(self._current_profile))
+            success = self._scrcpy.mirror(
+                serial,
+                width=1280,
+                height=720,
+                turn_screen_off=self._launch_with_screen_off,
+                forward_audio=self._audio_forwarding,
+                extra_flags=get_profile_flags(self._current_profile),
+            )
+            if not success:
+                self.statusMessage.emit(f"Mirror failed: {self._scrcpy.last_error or 'Unable to start scrcpy'}")
         except Exception as e: self.statusMessage.emit(f"Mirror failed: {e}")
     @Slot(str, str)
     def open_display(self, serial, mode):
         try:
             if not serial: return
             w, h, d = self._get_display_params(serial, mode)
-            self._scrcpy.create_display(serial, width=w, height=h, dpi=d, forward_audio=self._audio_forwarding, 
-                                       turn_screen_off=self._launch_with_screen_off, extra_flags=get_profile_flags(self._current_profile))
+            success = self._scrcpy.create_display(
+                serial,
+                width=w,
+                height=h,
+                dpi=d,
+                forward_audio=self._audio_forwarding,
+                turn_screen_off=self._launch_with_screen_off,
+                extra_flags=get_profile_flags(self._current_profile),
+            )
+            if not success:
+                self.statusMessage.emit(f"Display creation failed: {self._scrcpy.last_error or 'Unable to start scrcpy'}")
         except Exception as e: self.statusMessage.emit(f"Display creation failed: {e}")
     @Slot(str)
     def launch_app(self, package_name):
         try:
             if not self._current_device_serial or not package_name: return
             w, h, d = self._get_display_params(self._current_device_serial, self._launch_mode)
-            self._scrcpy.launch_app(self._current_device_serial, package_name, width=w, height=h, 
-                                   dpi=d, turn_screen_off=self._launch_with_screen_off, 
-                                   forward_audio=self._audio_forwarding, extra_flags=get_profile_flags(self._current_profile))
+            success = self._scrcpy.launch_app(
+                self._current_device_serial,
+                package_name,
+                width=w,
+                height=h,
+                dpi=d,
+                turn_screen_off=self._launch_with_screen_off,
+                forward_audio=self._audio_forwarding,
+                extra_flags=get_profile_flags(self._current_profile),
+            )
+            if not success:
+                self.statusMessage.emit(f"App launch failed: {self._scrcpy.last_error or 'Unable to start scrcpy'}")
         except Exception as e: self.statusMessage.emit(f"App launch failed: {e}")
     @Slot(str, str)
     @Slot(str, str, str)
@@ -286,41 +319,56 @@ class BackendBridge(QObject):
             if not s or not l: return
             r = r or f"/sdcard/Download/{os.path.basename(l)}"
             self.requestPushFile.emit(s, l, r)
-        except: pass
+        except Exception as e:
+            self._emit_action_error("File push", e)
     @Slot(str, str, str)
     def pull_file_from_device(self, s, r, l):
         try:
             if s and r and l: self.requestPullFile.emit(s, r, l)
-        except: pass
+        except Exception as e:
+            self._emit_action_error("File pull", e)
     @Slot(str)
     def capture_screenshot(self, serial):
         try:
             if serial: self.requestScreenshot.emit(serial)
-        except: pass
+        except Exception as e:
+            self._emit_action_error("Screenshot", e)
     @Slot(str, str, int)
     def set_volume(self, s, st, l):
-        try: self.requestSetVolume.emit(s, st, l)
-        except: pass
+        try:
+            self.requestSetVolume.emit(s, st, l)
+        except Exception as e:
+            self._emit_action_error("Set volume", e)
     @Slot(str, int)
     def set_brightness(self, s, l):
-        try: self.requestSetBrightness.emit(s, l)
-        except: pass
+        try:
+            self.requestSetBrightness.emit(s, l)
+        except Exception as e:
+            self._emit_action_error("Set brightness", e)
     @Slot(str, bool)
     def set_rotation_lock(self, s, l):
-        try: self.requestSetRotationLock.emit(s, l)
-        except: pass
+        try:
+            self.requestSetRotationLock.emit(s, l)
+        except Exception as e:
+            self._emit_action_error("Set rotation lock", e)
     @Slot(str, bool)
     def set_airplane_mode(self, s, e):
-        try: self.requestSetAirplaneMode.emit(s, e)
-        except: pass
+        try:
+            self.requestSetAirplaneMode.emit(s, e)
+        except Exception as e2:
+            self._emit_action_error("Set airplane mode", e2)
     @Slot(str, bool)
     def set_wifi_enabled(self, s, e):
-        try: self.requestSetWifi.emit(s, e)
-        except: pass
+        try:
+            self.requestSetWifi.emit(s, e)
+        except Exception as e2:
+            self._emit_action_error("Set WiFi", e2)
     @Slot(str, bool)
     def set_bluetooth_enabled(self, s, e):
-        try: self.requestSetBluetooth.emit(s, e)
-        except: pass
+        try:
+            self.requestSetBluetooth.emit(s, e)
+        except Exception as e2:
+            self._emit_action_error("Set Bluetooth", e2)
     @Slot(str, bool)
     def set_clipboard_sync(self, s, e): self._clipboard_sync_enabled[s] = e
     @Slot(str, result=bool)
@@ -332,30 +380,36 @@ class BackendBridge(QObject):
         try:
             path, _ = QFileDialog.getOpenFileName(None, "Select file", os.path.expanduser("~"), "All Files (*)")
             if path: self.push_file_to_device(s, path)
-        except: pass
+        except Exception as e:
+            self._emit_action_error("File selection", e)
     @Slot(str)
     def fetch_icon_for_package(self, p):
-        try: self.requestIcon.emit(self._current_device_serial, p)
-        except: pass
+        try:
+            self.requestIcon.emit(self._current_device_serial, p)
+        except Exception as e:
+            self._emit_action_error("Icon fetch", e)
     @Slot(str, result="QVariantMap")
     def connect_wireless_device(self, a):
         try:
             if ":" not in a: a = f"{a}:5555"
             self.requestConnectWireless.emit(a)
             return {"success": True, "message": "Connection attempt started"}
-        except: return {"success": False, "message": "Failed to start connection"}
+        except Exception as e:
+            return {"success": False, "message": f"Failed to start connection: {e}"}
     @Slot(str, str, result="QVariantMap")
     def pair_wireless_device(self, a, c):
         try:
             self.requestPairWireless.emit(a, c)
             return {"success": True, "message": "Pairing attempt started"}
-        except: return {"success": False, "message": "Pairing failed"}
+        except Exception as e:
+            return {"success": False, "message": f"Pairing failed: {e}"}
     @Slot(str, result="QVariantMap")
     def disconnect_wireless_device(self, a):
         try:
             self.requestDisconnectWireless.emit(a)
             return {"success": True, "message": "Disconnect attempt started"}
-        except: return {"success": False, "message": "Disconnect failed"}
+        except Exception as e:
+            return {"success": False, "message": f"Disconnect failed: {e}"}
     @Slot(str, int, result="QVariantMap")
     def enable_tcpip_mode(self, serial, port=5555):
         try:
@@ -363,8 +417,8 @@ class BackendBridge(QObject):
                 return {"success": False, "message": "No device selected"}
             self.requestEnableTcpip.emit(serial, port)
             return {"success": True, "message": f"Enabling TCP/IP on port {port}"}
-        except:
-            return {"success": False, "message": "Failed to enable TCP/IP mode"}
+        except Exception as e:
+            return {"success": False, "message": f"Failed to enable TCP/IP mode: {e}"}
     @Slot(str, list)
     def launch_app_on_multiple_devices(self, package_name, serials):
         try:
@@ -386,10 +440,12 @@ class BackendBridge(QObject):
                     extra_flags=get_profile_flags(self._current_profile),
                 ):
                     launched += 1
+                elif self._scrcpy.last_error:
+                    self.statusMessage.emit(f"Launch failed on {serial}: {self._scrcpy.last_error}")
             if launched:
                 self.statusMessage.emit(f"Launched {package_name} on {launched} device(s)")
             else:
-                self.statusMessage.emit(f"Failed to launch {package_name}")
+                self.statusMessage.emit(f"Failed to launch {package_name}: {self._scrcpy.last_error or 'Unable to start scrcpy'}")
         except Exception as e:
             self.statusMessage.emit(f"Multi-device launch failed: {e}")
     @Slot(str, str)
@@ -432,12 +488,17 @@ class BackendBridge(QObject):
     @Slot(str, dict)
     def _on_device_status_ready(self, s, st):
         try:
+            previous_status = self._device_status.get(s)
             self._device_status[s] = st
+            status_changed = previous_status != st
             for device in self._devices:
                 if device['serial'] == s:
-                    device["status_data"] = st
-                    self.devicesChanged.emit(self._devices)
+                    if device.get("status_data") != st:
+                        device["status_data"] = st
+                        status_changed = True
                     break
+            if status_changed:
+                self.devicesChanged.emit(self._devices)
             self.deviceStatusChanged.emit(s, st)
             if self._clipboard_sync_enabled.get(s, False): self.requestGetClipboard.emit(s)
         except Exception as e: print(f"Error in _on_device_status_ready: {e}", file=sys.stderr)
@@ -492,7 +553,8 @@ class BackendBridge(QObject):
                 for s, e in self._clipboard_sync_enabled.items():
                     if e: self.requestSetClipboard.emit(s, txt)
                 self._add_to_clipboard_history(txt)
-        except: pass
+        except Exception as e:
+            self.statusMessage.emit(f"Clipboard sync failed: {e}")
     @Slot(str, str)
     def _on_device_clipboard_changed(self, s, t):
         if self._clipboard_sync_enabled.get(s, False) and self._clipboard and t:
@@ -508,8 +570,10 @@ class BackendBridge(QObject):
         return w, h, d
     def _load_device_names(self):
         j = self._settings.value("device_names", "{}")
-        try: return json.loads(j) if j else {}
-        except: return {}
+        try:
+            return json.loads(j) if j else {}
+        except (TypeError, json.JSONDecodeError):
+            return {}
     def _add_to_clipboard_history(self, t):
         if t and t not in self._clipboard_history:
             self._clipboard_history.insert(0, t)

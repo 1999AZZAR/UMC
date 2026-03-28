@@ -3,11 +3,24 @@ import shutil
 import re
 import os
 import sys
+import zipfile
 from typing import List, Dict, Optional, Tuple
 
 class ADBHandler:
     def __init__(self):
         self.adb_path = shutil.which("adb")
+        self.last_error = ""
+
+    def _set_error(self, message: str):
+        self.last_error = message
+
+    def _run_adb_shell(self, serial: str, *args: str, timeout: int = 5) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [self.adb_path, "-s", serial, "shell", *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
 
     def connect_wireless(self, address: str) -> tuple[bool, str]:
         if not self.adb_path: return False, "ADB not found"
@@ -27,7 +40,9 @@ class ADBHandler:
         try:
             subprocess.run([self.adb_path, "disconnect", address], capture_output=True, timeout=5)
             return True, f"Disconnected from {address}"
-        except: return False, "Disconnect failed"
+        except Exception as e:
+            self._set_error(str(e))
+            return False, f"Disconnect failed: {e}"
 
     def get_devices(self) -> List[Dict[str, str]]:
         if not self.adb_path: return []
@@ -45,14 +60,17 @@ class ADBHandler:
                 if model_match: model = model_match.group(1).replace("_", " ")
                 devices.append({"serial": serial, "model": model, "status": status})
             return devices
-        except: return []
+        except (subprocess.SubprocessError, OSError) as e:
+            self._set_error(str(e))
+            return []
 
     def get_device_resolution(self, serial: str) -> tuple[int, int]:
         try:
             result = subprocess.run([self.adb_path, "-s", serial, "shell", "wm", "size"], capture_output=True, text=True, timeout=5)
             match = re.search(r'Physical size: (\d+)x(\d+)', result.stdout)
             if match: return int(match.group(1)), int(match.group(2))
-        except: pass
+        except (subprocess.SubprocessError, OSError):
+            pass
         return 1080, 2400
 
     def get_device_density(self, serial: str) -> int:
@@ -62,7 +80,8 @@ class ADBHandler:
             if match: return int(match.group(1))
             override = re.search(r'Override density: (\d+)', result.stdout)
             if override: return int(override.group(1))
-        except: pass
+        except (subprocess.SubprocessError, OSError):
+            pass
         return 400
 
     def get_device_status_info(self, serial: str) -> Dict[str, any]:
@@ -121,7 +140,8 @@ class ADBHandler:
                                 # We try to find the index of 'data' to be safe
                                 info["storage"] = {"total": int(p[1])//1024, "used": int(p[2])//1024}
                                 break
-                            except: pass
+                            except (TypeError, ValueError):
+                                pass
 
             # 3. Display, Settings, etc.
             info["width"], info["height"] = self.get_device_resolution(serial)
@@ -134,7 +154,8 @@ class ADBHandler:
                 info["rotation_locked"] = (rot == "0")
                 air = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "global", "airplane_mode_on"], capture_output=True, text=True, timeout=2).stdout.strip()
                 info["airplane_mode"] = (air == "1")
-            except: pass
+            except (subprocess.SubprocessError, OSError, ValueError):
+                pass
 
             # Volume
             vol_out = subprocess.run([self.adb_path, "-s", serial, "shell", "media", "volume", "--get", "--stream", "3"], capture_output=True, text=True, timeout=2).stdout
@@ -162,7 +183,6 @@ class ADBHandler:
             temp_apk = os.path.join(cache_dir, f"{package_name}.apk")
             subprocess.run([self.adb_path, "-s", serial, "pull", apk_path, temp_apk], capture_output=True, timeout=timeout)
             
-            import zipfile
             with zipfile.ZipFile(temp_apk, 'r') as z:
                 # Wide search for icons
                 icon_targets = ['res/mipmap-xxhdpi/ic_launcher.png', 'res/mipmap-xhdpi/ic_launcher.png', 'res/drawable-xhdpi/ic_launcher.png']
@@ -182,18 +202,58 @@ class ADBHandler:
 
             if os.path.exists(temp_apk): os.remove(temp_apk)
             return cache_file if os.path.exists(cache_file) else None
-        except: return None
+        except (subprocess.SubprocessError, OSError, zipfile.BadZipFile):
+            return None
 
     def push_file(self, serial, local, remote):
-        try: subprocess.run([self.adb_path, "-s", serial, "push", local, remote], check=True, timeout=600); return True
-        except: return False
+        try:
+            subprocess.run([self.adb_path, "-s", serial, "push", local, remote], check=True, timeout=600)
+            return True
+        except (subprocess.SubprocessError, OSError) as e:
+            self._set_error(str(e))
+            return False
 
     def pull_file(self, serial, remote, local):
-        try: subprocess.run([self.adb_path, "-s", serial, "pull", remote, local], check=True, timeout=600); return True
-        except: return False
+        try:
+            subprocess.run([self.adb_path, "-s", serial, "pull", remote, local], check=True, timeout=600)
+            return True
+        except (subprocess.SubprocessError, OSError) as e:
+            self._set_error(str(e))
+            return False
 
     def set_clipboard(self, serial, text):
         subprocess.run([self.adb_path, "-s", serial, "shell", "am", "broadcast", "-a", "clipper.set", "-e", "text", text], capture_output=True)
+
+    def get_clipboard(self, serial: str) -> Optional[str]:
+        if not self.adb_path:
+            return None
+
+        clipboard_cmds = [
+            ("cmd", "clipboard", "get"),
+            ("sh", "-c", "cmd clipboard read 2>/dev/null"),
+        ]
+
+        for cmd in clipboard_cmds:
+            try:
+                result = self._run_adb_shell(serial, *cmd, timeout=5)
+            except Exception:
+                continue
+
+            output = (result.stdout or "").strip()
+            error = (result.stderr or "").strip()
+
+            if result.returncode != 0:
+                continue
+            if not output:
+                continue
+            if "not found" in output.lower() or "not found" in error.lower():
+                continue
+            if output.lower().startswith("error:"):
+                continue
+
+            return output
+
+        return None
 
     def capture_screenshot(self, serial, path):
         try:
@@ -201,7 +261,9 @@ class ADBHandler:
             if not data: return False
             with open(path, 'wb') as f: f.write(data)
             return True
-        except: return False
+        except (subprocess.SubprocessError, OSError) as e:
+            self._set_error(str(e))
+            return False
 
     def pair_device(self, address: str, code: str) -> tuple[bool, str]:
         if not self.adb_path: return False, "ADB not found"
@@ -269,5 +331,6 @@ class ADBHandler:
             for line in res.stdout.split('\n'):
                 if 'label=' in line:
                     return line.split('label=')[1].split()[0].strip()
-        except: pass
+        except Exception:
+            return None
         return None

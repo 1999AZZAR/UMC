@@ -43,7 +43,7 @@ This TODO is prioritized by impact on correctness, user-facing reliability, and 
   - Why: current command handling is inconsistent and can fail silently.
 
 - [ ] Improve device status update efficiency.
-  - [ ] Avoid full `devicesChanged` emissions for every single device status tick.
+  - [x] Avoid full `devicesChanged` emissions for every single device status tick.
   - [ ] Emit granular updates or batch status updates per poll cycle.
   - Why: frequent full list updates can cause unnecessary QML redraw/rebinding overhead.
 
@@ -53,7 +53,7 @@ This TODO is prioritized by impact on correctness, user-facing reliability, and 
   - Why: reduces unnecessary ADB load and improves responsiveness under different usage patterns.
 
 - [ ] Harden cleanup/shutdown lifecycle.
-  - [ ] Add `aboutToQuit` hook in `main.py` to ensure cleanup always runs.
+  - [x] Add `aboutToQuit` hook in `main.py` to ensure cleanup always runs.
   - [ ] Avoid `QThread.terminate()` fallback where possible; prefer cooperative shutdown with bounded wait + diagnostics.
   - Why: safer process/thread cleanup and fewer zombie operations.
 
@@ -90,6 +90,6 @@ This TODO is prioritized by impact on correctness, user-facing reliability, and 
   - Why: easier tuning and less duplication.
 
 - [ ] Repository hygiene.
-  - [ ] Ignore transient artifacts (`memory.db`, `__pycache__`, runtime caches) consistently.
+  - [x] Ignore transient artifacts (`memory.db`, `__pycache__`, runtime caches) consistently.
   - [ ] Review generated Debian metadata files that should not be committed.
   - Why: cleaner diffs and fewer accidental commits.

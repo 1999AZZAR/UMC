@@ -29,6 +29,7 @@ Thumbs.db
 *.swo
 
 # Project specific
+memory.db
 UMC/memory.db
 out.log
 err.log

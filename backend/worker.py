@@ -92,7 +92,8 @@ class ADBWorker(QObject):
         try:
             subprocess.run([self.adb_path, "-s", serial, "shell", "input", "keyevent", "26"], timeout=5)
             self.deviceControlChanged.emit(serial, "screen_toggle")
-        except: pass
+        except Exception as e:
+            self.errorOccurred.emit(f"Screen toggle failed: {e}")
 
     @Slot(str, str)
     def fetch_icon(self, serial, package_name):

@@ -7,6 +7,16 @@ class ScrcpyHandler:
         self.scrcpy_path = shutil.which("scrcpy") or "scrcpy"
         # Track running processes to prevent zombies and duplicates
         self._processes = {} # (serial, package) -> Popen
+        self.last_error = ""
+
+    def _launch_process(self, cmd):
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.last_error = ""
+            return proc
+        except (FileNotFoundError, OSError) as e:
+            self.last_error = str(e)
+            return None
 
     def _cleanup_finished(self):
         """Remove finished processes from tracking."""
@@ -40,11 +50,11 @@ class ScrcpyHandler:
         if turn_screen_off: cmd.append("--turn-screen-off")
         if extra_flags: cmd.extend(extra_flags)
         
-        try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self._processes[(serial, package_name)] = proc
-            return True
-        except: return False
+        proc = self._launch_process(cmd)
+        if proc is None:
+            return False
+        self._processes[(serial, package_name)] = proc
+        return True
 
     def create_display(self, serial, width=1280, height=720, dpi=0, turn_screen_off=False, forward_audio=False, extra_flags=None):
         self._cleanup_finished()
@@ -63,10 +73,7 @@ class ScrcpyHandler:
         if turn_screen_off: cmd.append("--turn-screen-off")
         if extra_flags: cmd.extend(extra_flags)
         
-        try:
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True
-        except: return False
+        return self._launch_process(cmd) is not None
 
     def mirror(self, serial, width=1280, height=720, turn_screen_off=False, forward_audio=False, extra_flags=None):
         self._cleanup_finished()
@@ -81,10 +88,7 @@ class ScrcpyHandler:
         if turn_screen_off: cmd.append("--turn-screen-off")
         if extra_flags: cmd.extend(extra_flags)
         
-        try:
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True
-        except: return False
+        return self._launch_process(cmd) is not None
 
     def stop_all(self):
         """Kill all managed scrcpy sessions safely."""
@@ -93,7 +97,9 @@ class ScrcpyHandler:
                 if proc.poll() is None:
                     proc.terminate()
                     proc.wait(timeout=1)
-            except:
-                try: proc.kill()
-                except: pass
+            except (OSError, subprocess.SubprocessError):
+                try:
+                    proc.kill()
+                except (OSError, subprocess.SubprocessError):
+                    pass
         self._processes.clear()
