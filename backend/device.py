@@ -1,4 +1,3 @@
-from typing import Optional
 from .adb_handler import ADBHandler
 from .scrcpy_handler import ScrcpyHandler
 
@@ -20,7 +19,8 @@ class Device:
         For USB devices, it mainly verifies presence.
         """
         if ":" in self.serial: # Heuristic for network address
-            return self._adb.connect(self.serial)
+            success, _message = self._adb.connect_wireless(self.serial)
+            return success
         # For USB, we assume it's connected if we have the object, but we could re-verify
         return True
 
@@ -29,7 +29,8 @@ class Device:
         Disconnects the device.
         """
         if ":" in self.serial:
-            return self._adb.disconnect(self.serial)
+            success, _message = self._adb.disconnect_device(self.serial)
+            return success
         return True
 
     def launch_app(self, package_name: str, width: int = 1280, height: int = 720, dpi: int = 0, turn_screen_off: bool = False, forward_audio: bool = False) -> bool:
@@ -57,12 +58,6 @@ class Device:
             turn_screen_off=turn_screen_off,
             forward_audio=forward_audio
         )
-
-    def record(self, filename: str) -> bool:
-        """
-        Starts recording the screen of this device to a file.
-        """
-        return self._scrcpy.record(self.serial, filename)
 
     def get_info(self):
         """

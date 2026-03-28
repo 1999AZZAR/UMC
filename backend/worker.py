@@ -21,6 +21,9 @@ class ADBWorker(QObject):
     screenshotReady = Signal(str, str)
     deviceControlChanged = Signal(str, str)
     errorOccurred = Signal(str)
+    wirelessPairingFinished = Signal(str, bool, str)
+    wirelessDisconnectFinished = Signal(str, bool, str)
+    tcpipModeFinished = Signal(str, int, bool, str)
     
     def __init__(self):
         super().__init__()
@@ -168,6 +171,21 @@ class ADBWorker(QObject):
         success, message = self.adb_handler.connect_wireless(address)
         if success: self.fetch_devices()
         else: self.errorOccurred.emit(message)
+
+    @Slot(str, str)
+    def pair_wireless(self, address, code):
+        success, message = self.adb_handler.pair_device(address, code)
+        self.wirelessPairingFinished.emit(address, success, message)
+
+    @Slot(str)
+    def disconnect_wireless(self, address):
+        success, message = self.adb_handler.disconnect_device(address)
+        self.wirelessDisconnectFinished.emit(address, success, message)
+
+    @Slot(str, int)
+    def enable_tcpip_mode(self, serial, port):
+        success, message = self.adb_handler.enable_tcpip_mode(serial, port)
+        self.tcpipModeFinished.emit(serial, port, success, message)
 
     def stop(self):
         self._should_stop = True

@@ -131,7 +131,7 @@ class ADBHandler:
             try:
                 info["brightness"] = int(subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "screen_brightness"], capture_output=True, text=True, timeout=2).stdout.strip() or 128)
                 rot = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], capture_output=True, text=True, timeout=2).stdout.strip()
-                info["rotation_locked"] = (rot == "1")
+                info["rotation_locked"] = (rot == "0")
                 air = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "global", "airplane_mode_on"], capture_output=True, text=True, timeout=2).stdout.strip()
                 info["airplane_mode"] = (air == "1")
             except: pass
@@ -213,6 +213,23 @@ class ADBHandler:
             return False, output.strip()
         except Exception as e: return False, str(e)
 
+    def enable_tcpip_mode(self, serial: str, port: int = 5555) -> tuple[bool, str]:
+        if not self.adb_path:
+            return False, "ADB not found"
+        try:
+            result = subprocess.run(
+                [self.adb_path, "-s", serial, "tcpip", str(port)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            output = (result.stdout + result.stderr).strip()
+            if result.returncode == 0:
+                return True, output or f"Device now listening on TCP/{port}"
+            return False, output or "Failed to enable TCP/IP mode"
+        except Exception as e:
+            return False, str(e)
+
     def set_volume(self, serial, stream, level):
         st_type = {'music':'3', 'ring':'2', 'alarm':'4'}.get(stream, '3')
         return subprocess.run([self.adb_path, "-s", serial, "shell", "media", "volume", "--set", str(level), "--stream", st_type], timeout=5).returncode == 0
@@ -221,7 +238,7 @@ class ADBHandler:
         return subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "put", "system", "screen_brightness", str(level)], timeout=5).returncode == 0
 
     def set_rotation_lock(self, serial, locked):
-        val = "1" if locked else "0"
+        val = "0" if locked else "1"
         return subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", val], timeout=5).returncode == 0
 
     def set_airplane_mode(self, serial, enabled):

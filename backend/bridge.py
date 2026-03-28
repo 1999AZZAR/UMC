@@ -1,14 +1,12 @@
-from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread, QSettings, QMimeData, QUrl, Qt, QAbstractListModel, QModelIndex
-from PySide6.QtGui import QGuiApplication, QClipboard
+from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer, QThread, QSettings, Qt, QAbstractListModel, QModelIndex
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QFileDialog
 from .worker import ADBWorker
 from .scrcpy_handler import ScrcpyHandler
-from .adb_handler import ADBHandler
 from .profiles import get_profile_names, get_profile_flags
 import json
 import os
 import sys
-import subprocess
 
 class PackageModel(QAbstractListModel):
     NameRole = Qt.ItemDataRole.UserRole + 1
@@ -125,6 +123,9 @@ class BackendBridge(QObject):
     requestGetClipboard = Signal(str)
     requestSetClipboard = Signal(str, str)
     requestConnectWireless = Signal(str)
+    requestPairWireless = Signal(str, str)
+    requestDisconnectWireless = Signal(str)
+    requestEnableTcpip = Signal(str, int)
 
     def __init__(self):
         super().__init__()
@@ -167,6 +168,8 @@ class BackendBridge(QObject):
         self.requestToggleScreen.connect(self._worker.toggle_device_screen)
         self.requestIcon.connect(self._worker.fetch_icon)
         self.requestDeviceStatus.connect(self._worker.fetch_device_status)
+        self.requestPushFile.connect(self._worker.push_file)
+        self.requestPullFile.connect(self._worker.pull_file)
         self.requestScreenshot.connect(self._worker.capture_screenshot)
         self.requestSetVolume.connect(self._worker.set_volume)
         self.requestSetBrightness.connect(self._worker.set_brightness)
@@ -177,6 +180,9 @@ class BackendBridge(QObject):
         self.requestGetClipboard.connect(self._worker.get_clipboard)
         self.requestSetClipboard.connect(self._worker.set_clipboard)
         self.requestConnectWireless.connect(self._worker.connect_wireless)
+        self.requestPairWireless.connect(self._worker.pair_wireless)
+        self.requestDisconnectWireless.connect(self._worker.disconnect_wireless)
+        self.requestEnableTcpip.connect(self._worker.enable_tcpip_mode)
         
         self._worker.devicesReady.connect(self._on_devices_ready)
         self._worker.packagesReady.connect(self._on_packages_ready)
@@ -188,6 +194,9 @@ class BackendBridge(QObject):
         self._worker.screenshotReady.connect(self._on_screenshot_ready)
         self._worker.deviceControlChanged.connect(self._on_device_control_changed)
         self._worker.errorOccurred.connect(self._on_worker_error)
+        self._worker.wirelessPairingFinished.connect(self._on_wireless_pairing_finished)
+        self._worker.wirelessDisconnectFinished.connect(self._on_wireless_disconnect_finished)
+        self._worker.tcpipModeFinished.connect(self._on_tcpip_mode_finished)
         
         self._thread.start()
         self._timer = QTimer()
@@ -338,16 +347,51 @@ class BackendBridge(QObject):
     @Slot(str, str, result="QVariantMap")
     def pair_wireless_device(self, a, c):
         try:
-            s, m = self._worker.adb_handler.pair_device(a, c)
-            return {"success": s, "message": m}
+            self.requestPairWireless.emit(a, c)
+            return {"success": True, "message": "Pairing attempt started"}
         except: return {"success": False, "message": "Pairing failed"}
     @Slot(str, result="QVariantMap")
     def disconnect_wireless_device(self, a):
         try:
-            s, m = self._worker.adb_handler.disconnect_device(a)
-            self.requestDevices.emit()
-            return {"success": s, "message": m}
+            self.requestDisconnectWireless.emit(a)
+            return {"success": True, "message": "Disconnect attempt started"}
         except: return {"success": False, "message": "Disconnect failed"}
+    @Slot(str, int, result="QVariantMap")
+    def enable_tcpip_mode(self, serial, port=5555):
+        try:
+            if not serial:
+                return {"success": False, "message": "No device selected"}
+            self.requestEnableTcpip.emit(serial, port)
+            return {"success": True, "message": f"Enabling TCP/IP on port {port}"}
+        except:
+            return {"success": False, "message": "Failed to enable TCP/IP mode"}
+    @Slot(str, list)
+    def launch_app_on_multiple_devices(self, package_name, serials):
+        try:
+            if not package_name:
+                return
+            launched = 0
+            for serial in serials:
+                if not serial:
+                    continue
+                w, h, d = self._get_display_params(serial, self._launch_mode)
+                if self._scrcpy.launch_app(
+                    serial,
+                    package_name,
+                    width=w,
+                    height=h,
+                    dpi=d,
+                    turn_screen_off=self._launch_with_screen_off,
+                    forward_audio=self._audio_forwarding,
+                    extra_flags=get_profile_flags(self._current_profile),
+                ):
+                    launched += 1
+            if launched:
+                self.statusMessage.emit(f"Launched {package_name} on {launched} device(s)")
+            else:
+                self.statusMessage.emit(f"Failed to launch {package_name}")
+        except Exception as e:
+            self.statusMessage.emit(f"Multi-device launch failed: {e}")
     @Slot(str, str)
     def set_device_name(self, s, n):
         if s: self._device_names[s] = n; self._settings.setValue("device_names", json.dumps(self._device_names))
@@ -423,6 +467,22 @@ class BackendBridge(QObject):
     def _on_worker_error(self, m): 
         self.statusMessage.emit(f"Error: {m}")
         self._is_loading = False; self.loadingChanged.emit(False)
+    @Slot(str, bool, str)
+    def _on_wireless_pairing_finished(self, address, success, message):
+        prefix = "Paired" if success else "Pairing failed"
+        self.statusMessage.emit(f"{prefix} for {address}: {message}")
+        if success:
+            self.requestDevices.emit()
+    @Slot(str, bool, str)
+    def _on_wireless_disconnect_finished(self, address, success, message):
+        prefix = "Disconnected" if success else "Disconnect failed"
+        self.statusMessage.emit(f"{prefix} for {address}: {message}")
+        if success:
+            self.requestDevices.emit()
+    @Slot(str, int, bool, str)
+    def _on_tcpip_mode_finished(self, serial, port, success, message):
+        prefix = "TCP/IP enabled" if success else "TCP/IP enable failed"
+        self.statusMessage.emit(f"{prefix} for {serial}:{port} - {message}")
     @Slot()
     def _on_desktop_clipboard_data_changed(self):
         try:
