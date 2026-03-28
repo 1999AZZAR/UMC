@@ -1,95 +1,66 @@
-# UMC Improvement TODO
+# UMC Remaining TODO
 
-This TODO is prioritized by impact on correctness, user-facing reliability, and engineering maintainability.
+This backlog contains only unresolved work after the recent bridge, clipboard, cleanup, and runtime-error-reporting fixes.
 
-## P1 - Critical (Implement First)
+## P1 - High Risk / Likely User-Facing Bugs
 
-- [x] Implement missing bridge slots used by QML to prevent runtime action failures.
-  - [x] Add `@Slot(str, int, result="QVariantMap") def enable_tcpip_mode(...)` in `backend/bridge.py`.
-  - [x] Add `@Slot(str, list) def launch_app_on_multiple_devices(...)` in `backend/bridge.py`.
-  - [x] Validate these are callable from `ui/components/DeviceSidebar.qml` and `ui/components/AppGrid.qml`.
-  - Why: UI currently calls methods that do not exist, causing broken workflows at runtime.
+- [ ] Replace `QThread.terminate()` fallback in `backend/bridge.py`.
+  - Current cleanup still terminates the worker thread forcibly if `wait(1000)` times out.
+  - Risk: torn-down worker state, leaked subprocesses, and undefined shutdown behavior.
 
-- [x] Wire file-transfer signals to worker handlers.
-  - [x] Connect `requestPushFile -> self._worker.push_file` in `BackendBridge.__init__`.
-  - [x] Connect `requestPullFile -> self._worker.pull_file` in `BackendBridge.__init__`.
-  - Why: file transfer UI paths emit signals, but worker connections are missing, so push/pull cannot execute.
+- [ ] Correct device status reporting for WiFi and Bluetooth in `backend/adb_handler.py`.
+  - `wifi_enabled` and `bluetooth_enabled` are initialized with defaults but never read from the device.
+  - Risk: sidebar switches can display false state and encourage incorrect user actions.
 
-- [x] Fix cross-thread unsafe direct calls from UI thread to worker internals.
-  - [x] Replace direct calls to `self._worker.adb_handler.pair_device(...)` and `disconnect_device(...)` with queued worker-slot requests + response signals.
-  - [x] Keep all ADB operations in worker thread only.
-  - Why: current pattern bypasses thread boundary guarantees and can cause race issues or UI stalls.
+- [ ] Fix airplane-mode broadcast argument handling in `backend/adb_handler.py`.
+  - The `am broadcast ... --ez state` path currently passes `"1"` / `"0"` instead of explicit boolean values.
+  - Risk: broadcast may not apply correctly on some Android versions even if the setting value changes.
 
-- [x] Correct rotation lock state semantics.
-  - [x] Align `accelerometer_rotation` mapping with UI label (`Rotate Lock`) and ADB meaning.
-  - [x] Ensure getter/setter names and values represent lock state consistently (`locked=True` should disable auto-rotate).
-  - Why: current mapping likely inverts behavior and misleads users.
+- [ ] Harden icon extraction temp-file lifecycle in `backend/adb_handler.py`.
+  - Validate `adb pull` success before opening the APK.
+  - Ensure temp APK cleanup also happens on failure paths.
+  - Risk: stale temp files, misleading cache misses, and BadZip-style failures from partial pulls.
 
-- [x] Fix broken/incorrect domain API in `backend/device.py` or remove file if unused.
-  - [x] `Device.connect()` uses non-existent `ADBHandler.connect`.
-  - [x] `Device.disconnect()` uses non-existent `ADBHandler.disconnect`.
-  - [x] `Device.record()` calls non-existent `ScrcpyHandler.record`.
-  - Why: dead/broken API is a future regression trap and confuses maintenance.
+## P2 - Important Reliability / Robustness
 
-## P2 - Important (Stability and Reliability)
+- [ ] Finish replacing broad low-level exception fallbacks in `backend/adb_handler.py` and `backend/scrcpy_handler.py`.
+  - Remaining broad handlers still hide command/setup failures in device status reads, pairing, TCP/IP enable, and process launch edge cases.
 
-- [ ] Replace broad `except: pass` with targeted exceptions and user-facing/logged error context.
-  - Scope: especially `backend/bridge.py`, `backend/adb_handler.py`, `backend/scrcpy_handler.py`, `backend/worker.py`.
-  - Why: silent failures hide defects and make production debugging very hard.
+- [ ] Standardize subprocess execution behind shared helpers.
+  - Centralize timeout, `check`, stderr capture, and `last_error` handling for both `adb` and `scrcpy`.
+  - Reduce duplicated command boilerplate and inconsistent failure reporting.
 
-- [ ] Standardize subprocess execution and failure handling.
-  - [ ] Add a shared helper (timeout, return-code checks, stderr capture, optional retries).
-  - [ ] Guard all methods against missing binaries (`adb`, `scrcpy`) with explicit status messages.
-  - Why: current command handling is inconsistent and can fail silently.
+- [ ] Surface low-level `adb_handler.last_error` on failed file transfers and screenshots.
+  - Current UI shows generic completion/failure states but does not include the actual root cause.
 
-- [ ] Improve device status update efficiency.
-  - [x] Avoid full `devicesChanged` emissions for every single device status tick.
-  - [ ] Emit granular updates or batch status updates per poll cycle.
-  - Why: frequent full list updates can cause unnecessary QML redraw/rebinding overhead.
+- [ ] Improve package discovery quality in `backend/worker.py`.
+  - Use `get_app_label()` or a fallback pipeline instead of package-name guessing only.
+  - Filter or classify launcher entries more carefully to avoid noisy/incorrect app names.
 
-- [ ] Make background polling configurable and adaptive.
-  - [ ] Add polling interval setting in `QSettings` (default 3s).
-  - [ ] Slow down when idle / no devices, speed up on active sessions.
-  - Why: reduces unnecessary ADB load and improves responsiveness under different usage patterns.
+- [ ] Rework clipboard sync dependency handling.
+  - Detect when the target device lacks the required clipboard command/broadcast support.
+  - Show an actionable unsupported/error state instead of silent no-op behavior.
 
-- [ ] Harden cleanup/shutdown lifecycle.
-  - [x] Add `aboutToQuit` hook in `main.py` to ensure cleanup always runs.
-  - [ ] Avoid `QThread.terminate()` fallback where possible; prefer cooperative shutdown with bounded wait + diagnostics.
-  - Why: safer process/thread cleanup and fewer zombie operations.
+- [ ] Finish device update efficiency work.
+  - One full-list re-emit path was reduced, but updates are still per-device and poll-driven.
+  - Batch updates or granular model notifications would further reduce redraw churn.
 
-- [ ] Improve app metadata quality.
-  - [ ] Use `ADBHandler.get_app_label` fallback pipeline to avoid low-quality guessed labels.
-  - [ ] Normalize icon extraction strategy (adaptive icon support where possible).
-  - Why: improves UX and app discoverability.
+- [ ] Make polling configurable and adaptive.
+  - Add a stored poll interval and reduce background polling when idle / no devices are active.
 
-## P3 - Nice-to-Have (Maintainability and Delivery Quality)
+## P3 - Maintainability / Delivery
 
-- [ ] Add automated tests for core parsing/logic.
-  - [ ] Unit tests: device parsing, battery parsing, profile flag generation, display parameter selection.
-  - [ ] Integration-smoke tests: bridge-worker signal flow with mocked subprocess.
-  - Why: prevents regressions in critical command/parsing paths.
+- [ ] Add automated tests for parsing and bridge-worker flows.
+  - Focus: battery parsing, rotation semantics, package parsing, and signal-driven control flows with mocked subprocess calls.
 
-- [ ] Strengthen CI quality gates.
-  - [ ] Add lint (`ruff`/`flake8`) and type checks (`mypy` or pyright baseline).
-  - [ ] Add test job before packaging/release jobs.
-  - Why: catch breakages before release artifact generation.
+- [ ] Add CI quality gates before packaging.
+  - Lint, type-check baseline, and tests should run before release artifact creation.
 
-- [ ] Align docs with actual capabilities.
-  - [ ] Update README claims (latency, telemetry completeness, architecture wording) to match implemented behavior.
-  - [ ] Add troubleshooting section for missing `adb`/`scrcpy` binaries and permissions.
-  - Why: reduces user confusion and support overhead.
+- [ ] Replace remaining `print()` diagnostics with structured logging.
+  - Especially worker/device status and launch/process error paths.
 
-- [ ] Introduce structured logging.
-  - [ ] Replace `print()` with Python `logging` (levels + module logger names).
-  - [ ] Optionally expose debug toggle in UI or env var.
-  - Why: operational visibility during field debugging.
+- [ ] Align README claims with actual implementation.
+  - Document clipboard limitations, dependency requirements, and supported control behavior more precisely.
 
-- [ ] Configuration and constants cleanup.
-  - [ ] Centralize hardcoded values (timeouts, display defaults, history limits) into config constants.
-  - [ ] Add per-profile/per-mode override support via settings.
-  - Why: easier tuning and less duplication.
-
-- [ ] Repository hygiene.
-  - [x] Ignore transient artifacts (`memory.db`, `__pycache__`, runtime caches) consistently.
-  - [ ] Review generated Debian metadata files that should not be committed.
-  - Why: cleaner diffs and fewer accidental commits.
+- [ ] Review packaging/repo hygiene.
+  - Confirm generated Debian artifacts and runtime caches are consistently excluded from commits and releases.

@@ -66,7 +66,7 @@ Item {
             // Grid View
             GridView {
                 id: appGridView
-                cellWidth: width / Math.floor(width / 140) // Smart width adaptation
+                cellWidth: width / Math.max(1, Math.floor(width / 140)) // Smart width adaptation without zero-division
                 cellHeight: 160; clip: true
                 model: bridge ? bridge.packagesModel : null
                 

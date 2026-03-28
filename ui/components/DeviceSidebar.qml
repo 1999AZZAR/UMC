@@ -246,28 +246,28 @@ Rectangle {
                                 Text { text: "Rotate Lock"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
                                 Switch { 
                                     checked: deviceStatus.rotation_locked || false
-                                    onToggled: bridge.set_rotation_lock(modelData.serial, checked)
+                                    onClicked: bridge.set_rotation_lock(modelData.serial, checked)
                                 }
                             }
                             RowLayout {
                                 Text { text: "Clipboard Sync"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
                                 Switch { 
                                     checked: bridge.get_clipboard_sync(modelData.serial)
-                                    onToggled: bridge.set_clipboard_sync(modelData.serial, checked)
+                                    onClicked: bridge.set_clipboard_sync(modelData.serial, checked)
                                 }
                             }
                             RowLayout {
                                 Text { text: "WiFi"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
                                 Switch { 
                                     checked: deviceStatus.wifi_enabled !== false
-                                    onToggled: bridge.set_wifi_enabled(modelData.serial, checked)
+                                    onClicked: bridge.set_wifi_enabled(modelData.serial, checked)
                                 }
                             }
                             RowLayout {
                                 Text { text: "Airplane"; font.pixelSize: 10; color: Style.textSecondary; Layout.fillWidth: true }
                                 Switch { 
                                     checked: deviceStatus.airplane_mode || false
-                                    onToggled: bridge.set_airplane_mode(modelData.serial, checked)
+                                    onClicked: bridge.set_airplane_mode(modelData.serial, checked)
                                 }
                             }
                         }
