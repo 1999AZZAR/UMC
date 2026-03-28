@@ -117,12 +117,20 @@ class ADBWorker(QObject):
     def push_file(self, serial, local, remote):
         self.fileTransferProgress.emit(serial, "push", 0)
         success = self.adb_handler.push_file(serial, local, remote)
+        if success:
+            self.fileTransferProgress.emit(serial, "push", 100)
+        else:
+            self.errorOccurred.emit(f"File push failed: {self.adb_handler.last_error or 'Unknown error'}")
         self.fileTransferComplete.emit(serial, "push", success)
 
     @Slot(str, str, str)
     def pull_file(self, serial, remote, local):
         self.fileTransferProgress.emit(serial, "pull", 0)
         success = self.adb_handler.pull_file(serial, remote, local)
+        if success:
+            self.fileTransferProgress.emit(serial, "pull", 100)
+        else:
+            self.errorOccurred.emit(f"File pull failed: {self.adb_handler.last_error or 'Unknown error'}")
         self.fileTransferComplete.emit(serial, "pull", success)
 
     @Slot(str)
@@ -142,6 +150,8 @@ class ADBWorker(QObject):
         path = os.path.join(self.screenshot_dir, f"screenshot_{serial}_{ts}.png")
         if self.adb_handler.capture_screenshot(serial, path):
             self.screenshotReady.emit(serial, path)
+        else:
+            self.errorOccurred.emit(f"Screenshot failed: {self.adb_handler.last_error or 'Unknown error'}")
 
     @Slot(str, int)
     def send_keyevent(self, serial, keycode):
