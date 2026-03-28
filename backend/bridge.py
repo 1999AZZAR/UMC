@@ -584,4 +584,5 @@ class BackendBridge(QObject):
         if self._timer: self._timer.stop()
         if self._thread and self._thread.isRunning():
             self._thread.quit()
-            if not self._thread.wait(1000): self._thread.terminate()
+            if not self._thread.wait(5000):
+                print("Warning: worker thread did not stop cleanly before shutdown", file=sys.stderr)

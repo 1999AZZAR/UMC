@@ -4,23 +4,6 @@ This backlog contains only unresolved work after the recent bridge, clipboard, c
 
 ## P1 - High Risk / Likely User-Facing Bugs
 
-- [ ] Replace `QThread.terminate()` fallback in `backend/bridge.py`.
-  - Current cleanup still terminates the worker thread forcibly if `wait(1000)` times out.
-  - Risk: torn-down worker state, leaked subprocesses, and undefined shutdown behavior.
-
-- [ ] Correct device status reporting for WiFi and Bluetooth in `backend/adb_handler.py`.
-  - `wifi_enabled` and `bluetooth_enabled` are initialized with defaults but never read from the device.
-  - Risk: sidebar switches can display false state and encourage incorrect user actions.
-
-- [ ] Fix airplane-mode broadcast argument handling in `backend/adb_handler.py`.
-  - The `am broadcast ... --ez state` path currently passes `"1"` / `"0"` instead of explicit boolean values.
-  - Risk: broadcast may not apply correctly on some Android versions even if the setting value changes.
-
-- [ ] Harden icon extraction temp-file lifecycle in `backend/adb_handler.py`.
-  - Validate `adb pull` success before opening the APK.
-  - Ensure temp APK cleanup also happens on failure paths.
-  - Risk: stale temp files, misleading cache misses, and BadZip-style failures from partial pulls.
-
 ## P2 - Important Reliability / Robustness
 
 - [ ] Finish replacing broad low-level exception fallbacks in `backend/adb_handler.py` and `backend/scrcpy_handler.py`.

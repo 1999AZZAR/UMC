@@ -22,6 +22,19 @@ class ADBHandler:
             timeout=timeout,
         )
 
+    def _read_setting_flag(self, serial: str, namespace: str, key: str) -> Optional[bool]:
+        try:
+            result = self._run_adb_shell(serial, "settings", "get", namespace, key, timeout=2)
+        except (subprocess.SubprocessError, OSError):
+            return None
+
+        value = (result.stdout or "").strip().lower()
+        if value in {"1", "true", "enabled"}:
+            return True
+        if value in {"0", "false", "disabled"}:
+            return False
+        return None
+
     def connect_wireless(self, address: str) -> tuple[bool, str]:
         if not self.adb_path: return False, "ADB not found"
         try:
@@ -154,6 +167,12 @@ class ADBHandler:
                 info["rotation_locked"] = (rot == "0")
                 air = subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "get", "global", "airplane_mode_on"], capture_output=True, text=True, timeout=2).stdout.strip()
                 info["airplane_mode"] = (air == "1")
+                wifi_enabled = self._read_setting_flag(serial, "global", "wifi_on")
+                if wifi_enabled is not None:
+                    info["wifi_enabled"] = wifi_enabled
+                bluetooth_enabled = self._read_setting_flag(serial, "global", "bluetooth_on")
+                if bluetooth_enabled is not None:
+                    info["bluetooth_enabled"] = bluetooth_enabled
             except (subprocess.SubprocessError, OSError, ValueError):
                 pass
 
@@ -170,6 +189,7 @@ class ADBHandler:
     def get_app_icon_path(self, serial: str, package_name: str, cache_dir: str, timeout: int = 30) -> Optional[str]:
         cache_file = os.path.join(cache_dir, f"{package_name}.png")
         if os.path.exists(cache_file): return cache_file
+        temp_apk = os.path.join(cache_dir, f"{package_name}.apk")
         
         try:
             path_out = subprocess.run([self.adb_path, "-s", serial, "shell", "pm", "path", package_name], capture_output=True, text=True, timeout=5).stdout
@@ -180,8 +200,10 @@ class ADBHandler:
                     if "base.apk" in apk_path: break
             
             if not apk_path: return None
-            temp_apk = os.path.join(cache_dir, f"{package_name}.apk")
-            subprocess.run([self.adb_path, "-s", serial, "pull", apk_path, temp_apk], capture_output=True, timeout=timeout)
+            pull_result = subprocess.run([self.adb_path, "-s", serial, "pull", apk_path, temp_apk], capture_output=True, text=True, timeout=timeout)
+            if pull_result.returncode != 0 or not os.path.exists(temp_apk):
+                self._set_error((pull_result.stderr or pull_result.stdout or "APK pull failed").strip())
+                return None
             
             with zipfile.ZipFile(temp_apk, 'r') as z:
                 # Wide search for icons
@@ -200,10 +222,15 @@ class ADBHandler:
                             extracted = True
                             break
 
-            if os.path.exists(temp_apk): os.remove(temp_apk)
             return cache_file if os.path.exists(cache_file) else None
         except (subprocess.SubprocessError, OSError, zipfile.BadZipFile):
             return None
+        finally:
+            if os.path.exists(temp_apk):
+                try:
+                    os.remove(temp_apk)
+                except OSError:
+                    pass
 
     def push_file(self, serial, local, remote):
         try:
@@ -305,8 +332,9 @@ class ADBHandler:
 
     def set_airplane_mode(self, serial, enabled):
         val = "1" if enabled else "0"
+        bool_val = "true" if enabled else "false"
         subprocess.run([self.adb_path, "-s", serial, "shell", "settings", "put", "global", "airplane_mode_on", val], timeout=5)
-        subprocess.run([self.adb_path, "-s", serial, "shell", "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", val], timeout=5)
+        subprocess.run([self.adb_path, "-s", serial, "shell", "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", bool_val], timeout=5)
         return True
 
     def set_wifi_enabled(self, serial, enabled):
