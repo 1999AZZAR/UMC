@@ -1,6 +1,9 @@
 import subprocess
 import shutil
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ScrcpyHandler:
     def __init__(self):
@@ -30,7 +33,7 @@ class ScrcpyHandler:
         
         # Prevent multiple sessions for the same app on same device
         if (serial, package_name) in self._processes:
-            print(f"Session already exists for {package_name} on {serial}")
+            logger.info("Session already exists for %s on %s", package_name, serial)
             return True
 
         resolution = f"{width}x{height}"

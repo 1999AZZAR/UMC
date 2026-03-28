@@ -5,8 +5,12 @@ from .worker import ADBWorker
 from .scrcpy_handler import ScrcpyHandler
 from .profiles import get_profile_names, get_profile_flags
 import json
+import logging
 import os
 import sys
+import time
+
+logger = logging.getLogger(__name__)
 
 class PackageModel(QAbstractListModel):
     NameRole = Qt.ItemDataRole.UserRole + 1
@@ -147,6 +151,11 @@ class BackendBridge(QObject):
         self._clipboard_sync_enabled = {}
         self._clipboard_history = []
         self._max_clipboard_history = 50
+        self._devices_refresh_in_flight = False
+        self._devices_refresh_pending = False
+        self._status_requests_in_flight = set()
+        self._last_clipboard_poll_ms = {}
+        self._clipboard_poll_interval_ms = 10000
         
         app = QGuiApplication.instance()
         if app:
@@ -202,9 +211,9 @@ class BackendBridge(QObject):
         
         self._thread.start()
         self._timer = QTimer()
-        self._timer.timeout.connect(self.requestDevices.emit)
+        self._timer.timeout.connect(self._request_devices_if_idle)
         self._timer.start(3000)
-        self.requestDevices.emit()
+        self._request_devices_if_idle()
 
     # --- Properties ---
     @Property(list, notify=devicesChanged)
@@ -245,7 +254,7 @@ class BackendBridge(QObject):
     @Slot()
     def refresh_devices(self): 
         try:
-            self.requestDevices.emit()
+            self._request_devices_if_idle(force=True)
         except Exception as e:
             self.statusMessage.emit(f"Refresh failed: {e}")
     @Slot(str)
@@ -482,7 +491,9 @@ class BackendBridge(QObject):
     @Slot(list)
     def _on_devices_ready(self, devices):
         try:
+            self._devices_refresh_in_flight = False
             serials = [d['serial'] for d in devices]
+            self._status_requests_in_flight.intersection_update(serials)
             if self._current_device_serial and self._current_device_serial not in serials:
                 self._current_device_serial = ""; self.currentDeviceChanged.emit("")
                 self._package_model.clear(); self.statusMessage.emit("Device disconnected")
@@ -490,13 +501,21 @@ class BackendBridge(QObject):
                 s = d['serial']
                 if s in self._device_names: d["custom_name"] = self._device_names[s]
                 if s in self._device_status: d["status_data"] = self._device_status[s]
-                self.requestDeviceStatus.emit(s)
+                if s not in self._status_requests_in_flight:
+                    self._status_requests_in_flight.add(s)
+                    self.requestDeviceStatus.emit(s)
             if devices != self._devices: self._devices = devices; self.devicesChanged.emit(self._devices)
-        except Exception as e: print(f"Error in _on_devices_ready: {e}", file=sys.stderr)
+        except Exception as e:
+            logger.exception("Error in _on_devices_ready")
+        finally:
+            if self._devices_refresh_pending:
+                self._devices_refresh_pending = False
+                self._request_devices_if_idle()
         
     @Slot(str, dict)
     def _on_device_status_ready(self, s, st):
         try:
+            self._status_requests_in_flight.discard(s)
             previous_status = self._device_status.get(s)
             self._device_status[s] = st
             status_changed = previous_status != st
@@ -509,8 +528,10 @@ class BackendBridge(QObject):
             if status_changed:
                 self.devicesChanged.emit(self._devices)
             self.deviceStatusChanged.emit(s, st)
-            if self._clipboard_sync_enabled.get(s, False): self.requestGetClipboard.emit(s)
-        except Exception as e: print(f"Error in _on_device_status_ready: {e}", file=sys.stderr)
+            if self._clipboard_sync_enabled.get(s, False):
+                self._request_clipboard_if_due(s)
+        except Exception:
+            logger.exception("Error in _on_device_status_ready")
 
     @Slot(str, list)
     def _on_packages_ready(self, serial, packages):
@@ -542,13 +563,13 @@ class BackendBridge(QObject):
         prefix = "Paired" if success else "Pairing failed"
         self.statusMessage.emit(f"{prefix} for {address}: {message}")
         if success:
-            self.requestDevices.emit()
+            self._request_devices_if_idle(force=True)
     @Slot(str, bool, str)
     def _on_wireless_disconnect_finished(self, address, success, message):
         prefix = "Disconnected" if success else "Disconnect failed"
         self.statusMessage.emit(f"{prefix} for {address}: {message}")
         if success:
-            self.requestDevices.emit()
+            self._request_devices_if_idle(force=True)
     @Slot(str, int, bool, str)
     def _on_tcpip_mode_finished(self, serial, port, success, message):
         prefix = "TCP/IP enabled" if success else "TCP/IP enable failed"
@@ -587,6 +608,20 @@ class BackendBridge(QObject):
         if t and t not in self._clipboard_history:
             self._clipboard_history.insert(0, t)
             if len(self._clipboard_history) > self._max_clipboard_history: self._clipboard_history = self._clipboard_history[:self._max_clipboard_history]
+    def _request_devices_if_idle(self, force=False):
+        if self._devices_refresh_in_flight:
+            if force:
+                self._devices_refresh_pending = True
+            return
+        self._devices_refresh_in_flight = True
+        self.requestDevices.emit()
+    def _request_clipboard_if_due(self, serial):
+        now = int(time.monotonic() * 1000)
+        last_polled = self._last_clipboard_poll_ms.get(serial, -self._clipboard_poll_interval_ms)
+        elapsed = now - last_polled
+        if elapsed >= self._clipboard_poll_interval_ms:
+            self._last_clipboard_poll_ms[serial] = now
+            self.requestGetClipboard.emit(serial)
     def cleanup(self):
         self._scrcpy.stop_all()
         if self._worker: self._worker.stop()
@@ -594,4 +629,4 @@ class BackendBridge(QObject):
         if self._thread and self._thread.isRunning():
             self._thread.quit()
             if not self._thread.wait(5000):
-                print("Warning: worker thread did not stop cleanly before shutdown", file=sys.stderr)
+                logger.warning("Worker thread did not stop cleanly before shutdown")

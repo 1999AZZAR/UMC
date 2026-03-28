@@ -2,9 +2,11 @@ import subprocess
 import shutil
 import re
 import os
-import sys
 import zipfile
+import logging
 from typing import List, Dict, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 class ADBHandler:
     def __init__(self):
@@ -181,8 +183,8 @@ class ADBHandler:
             v_match = re.search(r'volume is (\d+)', vol_out)
             if v_match: info["volume_music"] = int(v_match.group(1))
 
-        except Exception as e:
-            print(f"Error gathering status for {serial}: {e}", file=sys.stderr)
+        except Exception:
+            logger.exception("Error gathering status for %s", serial)
             
         return info
 

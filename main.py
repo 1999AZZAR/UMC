@@ -1,6 +1,7 @@
 import sys
 import os
 import signal
+import logging
 
 # Ensure the current directory is in sys.path for robust imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,11 +14,16 @@ try:
     from PySide6.QtCore import QUrl
     from backend.bridge import BackendBridge
 except ImportError as e:
-    print(f"Critical Import Error: {e}")
-    print(f"Python Path: {sys.path}")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logger = logging.getLogger(__name__)
+    logger.critical("Critical import error: %s", e)
+    logger.critical("Python path: %s", sys.path)
     sys.exit(1)
 
+logger = logging.getLogger(__name__)
+
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     # Use QApplication instead of QGuiApplication for file dialogs
     app = QApplication(sys.argv)
     engine = QQmlApplicationEngine()
@@ -45,13 +51,13 @@ def main():
     
     qml_file = os.path.join(ui_dir, "main.qml")
     if not os.path.exists(qml_file):
-        print(f"Error: QML file not found at {qml_file}")
+        logger.error("QML file not found at %s", qml_file)
         sys.exit(1)
         
     engine.load(QUrl.fromLocalFile(qml_file))
 
     if not engine.rootObjects():
-        print("Error: Failed to load QML objects")
+        logger.error("Failed to load QML objects")
         sys.exit(-1)
 
     ret = app.exec()

@@ -19,18 +19,9 @@ This backlog contains only unresolved work after the recent bridge, clipboard, c
 
 ## P2 - Important Reliability / Robustness
 
-- [ ] Prevent polling backlog in the worker thread.
-  - `backend/bridge.py` emits `requestDevices` every 3 seconds and then emits one `requestDeviceStatus` per device on each refresh.
-  - With slow ADB calls or multiple devices, requests can queue faster than the single worker thread can drain them.
-  - Risk: stale device status, delayed controls, and steadily growing latency under load.
-
 - [ ] Decouple expensive package discovery from time-sensitive device polling.
   - `backend/worker.py::fetch_packages()` runs a blocking launcher query in the same worker thread used for device status, screenshots, toggles, and file operations.
   - Risk: selecting a device can stall every other backend operation until package discovery finishes.
-
-- [ ] Reduce clipboard polling overhead when sync is enabled.
-  - `backend/bridge.py::_on_device_status_ready()` requests clipboard contents on every status refresh for synced devices.
-  - Risk: unnecessary ADB traffic every poll cycle and extra queue pressure in the worker thread.
 
 - [ ] Finish replacing broad low-level exception fallbacks in `backend/adb_handler.py` and `backend/scrcpy_handler.py`.
   - Remaining broad handlers still hide command/setup failures in device status reads, pairing, TCP/IP enable, and process launch edge cases.
@@ -39,12 +30,9 @@ This backlog contains only unresolved work after the recent bridge, clipboard, c
   - Centralize timeout, `check`, stderr capture, and `last_error` handling for both `adb` and `scrcpy`.
   - Reduce duplicated command boilerplate and inconsistent failure reporting.
 
-- [ ] Surface low-level `adb_handler.last_error` on failed file transfers and screenshots.
-  - Current UI shows generic completion/failure states but does not include the actual root cause.
-
 - [ ] Fix misleading file-transfer progress reporting.
-  - The worker emits progress `0` and then completion, but never reports real intermediate progress.
-  - Risk: the UI appears to support progress tracking while providing inaccurate information.
+  - The worker now emits `0` and `100`, but those are still synthetic milestones rather than real transfer progress.
+  - Either implement determinate progress from actual byte counts or switch the UI to an honest busy/complete state.
 
 - [ ] Improve package discovery quality in `backend/worker.py`.
   - Use `get_app_label()` or a fallback pipeline instead of package-name guessing only.
@@ -69,12 +57,6 @@ This backlog contains only unresolved work after the recent bridge, clipboard, c
 
 - [ ] Add CI quality gates before packaging.
   - Lint, type-check baseline, and tests should run before release artifact creation.
-
-- [ ] Replace remaining `print()` diagnostics with structured logging.
-  - Especially worker/device status and launch/process error paths.
-
-- [ ] Align README claims with actual implementation.
-  - Document clipboard limitations, dependency requirements, and supported control behavior more precisely.
 
 - [ ] Review packaging/repo hygiene.
   - Confirm generated Debian artifacts and runtime caches are consistently excluded from commits and releases.
