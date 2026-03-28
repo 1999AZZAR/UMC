@@ -50,6 +50,10 @@ This backlog contains only unresolved work after the recent bridge, clipboard, c
   - Use `get_app_label()` or a fallback pipeline instead of package-name guessing only.
   - Filter or classify launcher entries more carefully to avoid noisy/incorrect app names.
 
+- [ ] Expand the new keyevent control path into a configurable command layer.
+  - The generic `send_keyevent(serial, code)` path now exists, but the UI only exposes a small hardcoded quick-action set.
+  - Add a reusable keyevent catalog / command palette so navigation, media, and TV-style controls do not require one-off UI wiring each time.
+
 - [ ] Rework clipboard sync dependency handling.
   - Detect when the target device lacks the required clipboard command/broadcast support.
   - Show an actionable unsupported/error state instead of silent no-op behavior.

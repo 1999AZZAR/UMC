@@ -143,6 +143,13 @@ class ADBWorker(QObject):
         if self.adb_handler.capture_screenshot(serial, path):
             self.screenshotReady.emit(serial, path)
 
+    @Slot(str, int)
+    def send_keyevent(self, serial, keycode):
+        if self.adb_handler.send_keyevent(serial, keycode):
+            self.deviceControlChanged.emit(serial, f"keyevent_{keycode}")
+        else:
+            self.errorOccurred.emit(f"Keyevent {keycode} failed: {self.adb_handler.last_error or 'Unknown error'}")
+
     @Slot(str, str, int)
     def set_volume(self, s, st, l):
         if self.adb_handler.set_volume(s, st, l): self.deviceControlChanged.emit(s, f"volume_{st}")

@@ -278,6 +278,30 @@ Rectangle {
                             Button { text: "Screenshot"; Layout.fillWidth: true; onClicked: bridge.capture_screenshot(modelData.serial) }
                             Button { text: "Files"; Layout.fillWidth: true; onClicked: bridge.request_file_selection(modelData.serial) }
                         }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true; spacing: 6
+                            Text { text: "Quick Actions"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Style.textSecondary }
+
+                            GridLayout {
+                                columns: 3
+                                Layout.fillWidth: true
+                                columnSpacing: 8
+                                rowSpacing: 8
+
+                                Button { text: "Home"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 3) }
+                                Button { text: "Back"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 4) }
+                                Button { text: "Recents"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 187) }
+
+                                Button { text: "Menu"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 82) }
+                                Button { text: "Notif"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 83) }
+                                Button { text: "Search"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 84) }
+
+                                Button { text: "Play/Pause"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 85) }
+                                Button { text: "Vol +"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 24) }
+                                Button { text: "Vol -"; Layout.fillWidth: true; onClicked: bridge.send_keyevent(modelData.serial, 25) }
+                            }
+                        }
                     }
                 }
             }

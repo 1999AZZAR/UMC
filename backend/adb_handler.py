@@ -251,6 +251,22 @@ class ADBHandler:
     def set_clipboard(self, serial, text):
         subprocess.run([self.adb_path, "-s", serial, "shell", "am", "broadcast", "-a", "clipper.set", "-e", "text", text], capture_output=True)
 
+    def send_keyevent(self, serial: str, keycode: int) -> bool:
+        if not self.adb_path:
+            self._set_error("ADB not found")
+            return False
+        try:
+            subprocess.run(
+                [self.adb_path, "-s", serial, "shell", "input", "keyevent", str(keycode)],
+                check=True,
+                timeout=5,
+            )
+            self._set_error("")
+            return True
+        except (subprocess.SubprocessError, OSError) as e:
+            self._set_error(str(e))
+            return False
+
     def get_clipboard(self, serial: str) -> Optional[str]:
         if not self.adb_path:
             return None

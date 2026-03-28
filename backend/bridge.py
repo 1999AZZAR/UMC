@@ -114,6 +114,7 @@ class BackendBridge(QObject):
     requestPushFile = Signal(str, str, str)
     requestPullFile = Signal(str, str, str)
     requestScreenshot = Signal(str)
+    requestKeyevent = Signal(str, int)
     requestSetVolume = Signal(str, str, int)
     requestSetBrightness = Signal(str, int)
     requestSetRotationLock = Signal(str, bool)
@@ -171,6 +172,7 @@ class BackendBridge(QObject):
         self.requestPushFile.connect(self._worker.push_file)
         self.requestPullFile.connect(self._worker.pull_file)
         self.requestScreenshot.connect(self._worker.capture_screenshot)
+        self.requestKeyevent.connect(self._worker.send_keyevent)
         self.requestSetVolume.connect(self._worker.set_volume)
         self.requestSetBrightness.connect(self._worker.set_brightness)
         self.requestSetRotationLock.connect(self._worker.set_rotation_lock)
@@ -333,6 +335,13 @@ class BackendBridge(QObject):
             if serial: self.requestScreenshot.emit(serial)
         except Exception as e:
             self._emit_action_error("Screenshot", e)
+    @Slot(str, int)
+    def send_keyevent(self, serial, keycode):
+        try:
+            if serial:
+                self.requestKeyevent.emit(serial, keycode)
+        except Exception as e:
+            self._emit_action_error(f"Keyevent {keycode}", e)
     @Slot(str, str, int)
     def set_volume(self, s, st, l):
         try:
