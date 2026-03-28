@@ -57,6 +57,3 @@ This backlog contains only unresolved work after the recent bridge, clipboard, c
 
 - [ ] Add CI quality gates before packaging.
   - Lint, type-check baseline, and tests should run before release artifact creation.
-
-- [ ] Review packaging/repo hygiene.
-  - Confirm generated Debian artifacts and runtime caches are consistently excluded from commits and releases.
